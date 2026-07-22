@@ -6,6 +6,12 @@ enum TestSupport {
     static let ffmpeg = "/opt/homebrew/bin/ffmpeg"
     static let ffprobe = "/opt/homebrew/bin/ffprobe"
 
+    /// Stub HTTP client returning fixed bytes for any URL.
+    struct StubHTTPClient: HTTPClient {
+        let data: Data
+        func get(_ url: URL) async throws -> Data { data }
+    }
+
     /// A fresh unique temp directory (caller may clean up; OS clears /tmp anyway).
     static func tempDir(_ label: String = "opensong") throws -> URL {
         let base = URL(fileURLWithPath: NSTemporaryDirectory())
