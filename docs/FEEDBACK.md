@@ -4,6 +4,15 @@ Running log of feedback from real use, with status. Newest first.
 
 ## 2026-07-22 session
 
+- [x] **Album art not shown** (app drew gradients; files have embedded covers). Fix:
+  `ArtworkThumbnail` + `ArtworkCache` extract embedded art via ffmpeg on first display and
+  cache it (self-healing); used in song rows, albums grid, metadata editor, player bar.
+- [x] **No way to play a song.** Fix: shared `PreviewPlayerModel` on the store; double-click
+  (or context-menu Play) plays into the bottom bar (real AVAudioPlayer + progress).
+- [x] **Apple Music capped at 40 playlists** (hardcoded limit). Fix: raised to 2000 playlists
+  / 1000 tracks each.
+
+
 - [x] **Sidebar rows only clickable on the text** — the whole row should be clickable.
   Fix: added `.contentShape(Rectangle())` to sidebar row buttons.
 

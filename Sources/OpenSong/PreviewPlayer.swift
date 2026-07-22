@@ -8,21 +8,41 @@ final class PreviewPlayerModel {
     var isPlaying = false
     var progress: Double = 0
     private var player: AVAudioPlayer?
+    private var tickTask: Task<Void, Never>?
 
     func play(_ song: SongRow) {
-        current = song
         let path = (song.path as NSString).expandingTildeInPath
-        if FileManager.default.fileExists(atPath: path),
-           let p = try? AVAudioPlayer(contentsOf: URL(fileURLWithPath: path)) {
-            player = p; p.play(); isPlaying = true
-        } else {
-            // No real file (sample data): reflect selection without audio.
-            isPlaying = true; progress = 0
+        guard FileManager.default.fileExists(atPath: path),
+              let p = try? AVAudioPlayer(contentsOf: URL(fileURLWithPath: path)) else {
+            current = song; isPlaying = false; progress = 0
+            return
         }
+        player?.stop()
+        current = song
+        player = p
+        p.play()
+        isPlaying = true
+        startTicking()
     }
+
     func toggle() {
-        isPlaying.toggle()
-        if isPlaying { player?.play() } else { player?.pause() }
+        guard let p = player else { return }
+        if p.isPlaying { p.pause(); isPlaying = false }
+        else { p.play(); isPlaying = true }
+    }
+
+    private func startTicking() {
+        tickTask?.cancel()
+        tickTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard let self, let p = self.player else { continue }
+                self.progress = p.duration > 0 ? p.currentTime / p.duration : 0
+                if !p.isPlaying && self.isPlaying && p.currentTime >= p.duration - 0.05 {
+                    self.isPlaying = false
+                }
+            }
+        }
     }
 }
 
@@ -34,7 +54,7 @@ struct PreviewPlayerBar: View {
     var body: some View {
         HStack(spacing: 12) {
             if let song = model.current {
-                RoundedRectangle(cornerRadius: 4).fill(placeholderGradient(song.album)).frame(width: 34, height: 34)
+                ArtworkThumbnail(path: song.path, seed: song.album, size: 34, corner: 4)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(song.title).font(.system(size: 12, weight: .medium)).foregroundStyle(theme.text).lineLimit(1)
                     Text(song.artist).font(.system(size: 11)).foregroundStyle(theme.text3).lineLimit(1)
@@ -45,7 +65,9 @@ struct PreviewPlayerBar: View {
             }
             Button { model.toggle() } label: {
                 Image(systemName: model.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 14))
-            }.buttonStyle(.plain).foregroundStyle(theme.text)
+            }
+            .buttonStyle(.plain).foregroundStyle(model.current == nil ? theme.text3 : theme.text)
+            .disabled(model.current == nil)
             ProgressBar(value: model.progress).frame(maxWidth: .infinity)
             Image(systemName: "speaker.wave.2").font(.system(size: 12)).foregroundStyle(theme.text3)
         }
@@ -62,7 +84,7 @@ struct MenuBarExtraView: View {
             if store.device.connected {
                 Text("Walkman: \(store.device.songCount) songs · \(byteLabel(store.device.freeBytes)) free")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
-                Button("Sync now") { store.buildSyncPreview() }
+                Button("Sync now") { store.runSync() }
             } else {
                 Text("Walkman — Offline").font(.system(size: 12)).foregroundStyle(.secondary)
             }

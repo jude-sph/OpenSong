@@ -19,8 +19,7 @@ struct MetadataEditorView: View {
             Text("Edit Metadata").font(.system(size: 15, weight: .bold)).foregroundStyle(theme.text)
             HStack(alignment: .top, spacing: 16) {
                 VStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 8).fill(placeholderGradient(album))
-                        .frame(width: 120, height: 120)
+                    ArtworkThumbnail(path: song?.path ?? "", seed: album, size: 120, corner: 8)
                     Button("Replace artwork") {}.buttonStyle(SoftButton())
                 }
                 VStack(spacing: 10) {

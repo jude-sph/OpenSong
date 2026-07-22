@@ -71,6 +71,9 @@ final class AppStore {
         }
     }
 
+    // Shared preview player (so any view can play a song into the bottom bar).
+    let player = PreviewPlayerModel()
+
     // Engines
     private var store: LibraryStore?
     private var probe = AudioProbe()

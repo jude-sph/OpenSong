@@ -39,7 +39,6 @@ struct WindowConfigurator: NSViewRepresentable {
 struct RootView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
-    @State private var player = PreviewPlayerModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,7 +54,7 @@ struct RootView: View {
                     .background(theme.content)
             }
             Divider().overlay(theme.sep)
-            PreviewPlayerBar(model: player)
+            PreviewPlayerBar(model: store.player)
             Divider().overlay(theme.sep)
             ActivityBar()
         }

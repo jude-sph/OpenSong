@@ -13,7 +13,8 @@ struct ScrollOrStack<C: View>: View {
         if renderMode {
             VStack(alignment: alignment, spacing: 0) { content }
         } else {
-            ScrollView { VStack(alignment: alignment, spacing: 0) { content } }
+            // LazyVStack so off-screen rows don't run their artwork-extraction .task.
+            ScrollView { LazyVStack(alignment: alignment, spacing: 0) { content } }
         }
     }
 }

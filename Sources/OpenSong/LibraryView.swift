@@ -137,9 +137,10 @@ struct SongsTable: View {
                 ForEach(Array(store.filteredSongs.enumerated()), id: \.element.id) { idx, song in
                     rowView(song, striped: idx % 2 == 1)
                         .contentShape(Rectangle())
-                        .onTapGesture(count: 2) { store.openSheet = .metadata(song.id) }
+                        .onTapGesture(count: 2) { store.player.play(song) }
                         .onTapGesture { store.selection = [song.id] }
                         .contextMenu {
+                            Button("Play") { store.player.play(song) }
                             Button("Edit Metadata…") { store.openSheet = .metadata(song.id) }
                             Button(song.onDevice ? "Unpin from Device" : "Pin to Device") {
                                 store.pin(song.id, !song.onDevice)
@@ -180,7 +181,7 @@ struct SongsTable: View {
             Circle().fill(song.onDevice ? theme.accent : Color.clear)
                 .overlay(Circle().stroke(selected ? theme.selText : theme.text3, lineWidth: song.onDevice ? 0 : 1.2))
                 .frame(width: 9, height: 9)
-            RoundedRectangle(cornerRadius: 3).fill(placeholderGradient(song.album)).frame(width: 22, height: 22)
+            ArtworkThumbnail(path: song.path, seed: song.album, size: 22, corner: 3)
             Text(song.title).foregroundStyle(selected ? theme.selText : theme.text).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(song.artist).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text2).lineLimit(1).frame(width: 220, alignment: .leading)
@@ -227,12 +228,8 @@ struct AlbumsGrid: View {
             store.activeView = .allSongs
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 6).fill(placeholderGradient(album.name))
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay(alignment: .bottomLeading) {
-                        Text(initials(album.name)).font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.85)).padding(8)
-                    }
+                ArtworkThumbnail(path: album.songIDs.first.flatMap { store.song($0)?.path } ?? "",
+                                 seed: album.name, size: 160, corner: 6)
                 Text(album.name).font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(theme.text).lineLimit(1)
                 Text("\(album.artist)\(album.year.map { " · \($0)" } ?? "")")

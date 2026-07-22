@@ -46,7 +46,7 @@ public struct AppleMusicBridge: Sendable {
         """
     }
 
-    public func playlists(limit: Int = 40, tracksPerPlaylist: Int = 400) throws -> [AppleMusicCollection] {
+    public func playlists(limit: Int = 2000, tracksPerPlaylist: Int = 1000) throws -> [AppleMusicCollection] {
         let r = try Shell.run(osascriptPath, ["-l", "JavaScript", "-e",
             Self.script(playlistLimit: limit, tracksPerPlaylist: tracksPerPlaylist)])
         guard r.status == 0 else { throw AMError.failed(r.stderrString) }
