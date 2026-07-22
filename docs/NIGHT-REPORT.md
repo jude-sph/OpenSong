@@ -42,12 +42,17 @@ SwiftUI's offscreen `ImageRenderer` instead — display-independent, and the scr
 data), in light + dark. Sidebar, library (songs/albums/artists), device view with live
 capacity ring + sync diff, playlists, settings, metadata editor, preview player, menu bar.
 
-**Still to wire (the natural "do it together" morning task):** the UI *buttons* aren't yet
-connected to the engines — "Choose folder…" (import), "Sync", "Save to file tags", path
-pickers, pin/delete. The engines they'll call are all built and tested; this is
-NSOpenPanel + action wiring, best done with you present and the device plugged in so we
-can watch a real import → sync end-to-end. Sample data gets replaced by your real library
-through that first import/adopt.
+**UI↔engine wiring is now DONE too** (you asked me to just do it — I did):
+- **Import** from folders *you* choose (multi-select `NSOpenPanel`, never hardcoded) →
+  scans → iTunes suggestions → review sheet (Original vs Suggested per row) → imports into
+  the master tree. The empty library prompts you to Import to get started.
+- **Sync** button runs the real reconciling engine against the mounted Walkman.
+- **Settings** library folder + tool paths via pickers, persisted (UserDefaults).
+- **Metadata editor** saves to the identity and writes ID3 tags; pin/unpin + Reveal in Finder.
+- Sample data now seeds **only** in render mode; the real app starts empty and clean.
+
+So the app is fully usable end-to-end. The one thing left is watching a real
+import→sync on the physical device (see below).
 
 ## How to run it
 
@@ -61,23 +66,29 @@ open build/OpenSong.app           # launch in your session
 OPENSONG_RENDER=1 OPENSONG_RENDER_DIR=/tmp/shots ./build/OpenSong.app/Contents/MacOS/OpenSong
 ```
 
-## Verification checkpoints (need you / the device)
+## Real-device verification status
 
-1. **Reconnect the Walkman** so I can (a) re-confirm our generated `.m3u8` is byte-identical
-   to the device's own files, and (b) run a real import → adopt → sync end-to-end on hardware.
-2. Confirm album ordering on the device after we backfill track-number tags (bare filenames
-   rely on ID3 track numbers — your existing files mostly had `track=0`).
-3. R128-normalized 192k files sound right on the device.
+- ✅ **`.m3u8` byte-identity confirmed on real hardware** — I captured a fresh playlist
+  from your Walkman and a test round-trips it byte-for-byte (`device-aphex-real.m3u8`).
+- ⏳ **Live write-to-device test is written and ready but didn't get to run** — your Walkman
+  **auto-unmounted** (these players drop off USB when idle; it wasn't in `/Volumes` by the
+  time the write test ran). The test (`OPENSONG_DEVICE_TEST=1 swift run OpenSongTests`) is
+  self-cleaning: it writes two `OpenSong SelfTest` tracks + a playlist, verifies them on the
+  device, then removes them — leaving your device untouched. Re-plug the Walkman and run it
+  (or just click **Sync** in the app) to close this loop.
+
+Still worth confirming with the device in hand:
+1. Album ordering after track-number backfill (bare filenames rely on ID3 track numbers).
+2. R128-normalized 192k files sound right on the device.
 
 ## Non-blocking questions for whenever
 
-1. **Where's your messy music folder?** I'll point the first real import at it (replaces
-   the sample data) once we wire the import button.
-2. Want me to **wire the UI↔engine actions next**, or start **Phase 2 (yt-dlp acquisition)**?
-   Phase 2 needs its own brief→spec→plan pass; note the CLT SDK targets macOS 15, so the
-   on-device LLM cleanup will use a heuristic/Ollama path (Foundation Models needs macOS 26).
-3. Optional: installing **Xcode** would give a nicer interactive debug loop, but it's not
-   required for building, testing, or shipping this.
+1. **Try it:** `open build/OpenSong.app`, click **Import…**, pick your messy folders, and
+   review/import. Then re-plug the Walkman and hit **Sync**. Tell me if anything feels off.
+2. Next up: **Phase 2 (yt-dlp acquisition)**? It needs its own brief→spec→plan pass; note the
+   CLT SDK targets macOS 15, so on-device LLM cleanup will use a heuristic/Ollama path
+   (Foundation Models needs macOS 26). Or I can polish/adopt-from-device flow in the UI first.
+3. Optional: installing **Xcode** gives a nicer interactive debug loop, but it's not required.
 
 ## Commit trail
 

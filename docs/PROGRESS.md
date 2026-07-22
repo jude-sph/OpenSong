@@ -50,5 +50,5 @@ spec→plan cycles (will be added tonight if time allows).
 - Stretch: embedding playlists/dedup, mood/BPM, capacity optimizer
 
 ## Test status
-`swift run OpenSongTests` — 51 passing (50 + 1 live). PHASE 1 COMPLETE (engine + UI).
+`swift run OpenSongTests` — 51 passing (53 total; live iTunes + real-device tests gated). PHASE 1 COMPLETE (engine + UI + wiring).
 Run live network tests with `OPENSONG_LIVE=1 swift run OpenSongTests`.
