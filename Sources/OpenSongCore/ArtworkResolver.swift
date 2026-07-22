@@ -31,16 +31,18 @@ public struct ArtworkResolver: Sendable {
         try data.write(to: dst)
     }
 
-    /// Embed `art` as the front cover of `audio` (in place).
+    /// Embed `art` as the front cover of `audio` (in place). Extension-preserving.
     public func embed(_ art: URL, into audio: URL) throws {
+        let ext = audio.pathExtension.isEmpty ? "mp3" : audio.pathExtension
         let tmp = audio.deletingLastPathComponent()
-            .appendingPathComponent(".osart-\(UUID().uuidString).mp3")
-        let r = try Shell.run(ffmpegPath, [
-            "-y", "-i", audio.path, "-i", art.path,
-            "-map", "0:a", "-map", "1:v", "-c:a", "copy", "-c:v", "copy",
-            "-id3v2_version", "3", "-disposition:v", "attached_pic",
-            "-metadata:s:v", "title=Album cover", "-metadata:s:v", "comment=Cover (front)",
-            tmp.path])
+            .appendingPathComponent(".osart-\(UUID().uuidString).\(ext)")
+        var args = ["-y", "-i", audio.path, "-i", art.path,
+                    "-map", "0:a", "-map", "1:v", "-c:a", "copy", "-c:v", "copy",
+                    "-disposition:v", "attached_pic",
+                    "-metadata:s:v", "title=Album cover", "-metadata:s:v", "comment=Cover (front)"]
+        if ext.lowercased() == "mp3" { args += ["-id3v2_version", "3"] }
+        args.append(tmp.path)
+        let r = try Shell.run(ffmpegPath, args)
         guard r.status == 0 else {
             try? FileManager.default.removeItem(at: tmp)
             throw NSError(domain: "ArtworkResolver", code: 1,

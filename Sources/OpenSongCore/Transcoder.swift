@@ -59,11 +59,14 @@ public struct Transcoder: Sendable {
         guard r.status == 0 else { throw TranscodeError.failed(r.stderrString) }
     }
 
-    /// Rewrite ID3 tags in place (stream copy, no re-encode).
+    /// Rewrite tags in place (stream copy, no re-encode). Extension-preserving so it works
+    /// for mp3 masters and m4a downloads alike.
     public func writeTags(_ url: URL, _ tags: TrackIdentity) throws {
+        let ext = url.pathExtension.isEmpty ? "mp3" : url.pathExtension
         let tmp = url.deletingLastPathComponent()
-            .appendingPathComponent(".ostmp-\(UUID().uuidString).mp3")
-        var args = ["-y", "-i", url.path, "-map", "0", "-c", "copy", "-id3v2_version", "3"]
+            .appendingPathComponent(".ostmp-\(UUID().uuidString).\(ext)")
+        var args = ["-y", "-i", url.path, "-map", "0", "-c", "copy"]
+        if ext.lowercased() == "mp3" { args += ["-id3v2_version", "3"] }
         args += metadataArgs(tags)
         args.append(tmp.path)
         let r = try Shell.run(ffmpegPath, args)

@@ -31,5 +31,6 @@ registerSpectralAnalyzerTests()
 registerFingerprinterTests()
 registerArtworkCropTests()
 registerWishlistStoreTests()
+registerAcquireCoordinatorTests()
 
 t.runAll()

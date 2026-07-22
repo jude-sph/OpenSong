@@ -124,6 +124,13 @@ public struct Importer: Sendable {
         return (assets, playlists)
     }
 
+    /// Import a single already-downloaded file with a known identity (Phase 2 acquisition).
+    @discardableResult
+    public func importOne(_ url: URL, identity: TrackIdentity, source: AudioSource) throws -> AudioAsset {
+        let pr = try probe.probe(url)
+        return try importAll([(url, pr, identity)], source: source)[0]
+    }
+
     // MARK: shared internals
 
     private func importAll(_ inputs: [(URL, ProbeResult, TrackIdentity)],
