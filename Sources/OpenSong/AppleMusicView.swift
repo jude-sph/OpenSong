@@ -37,11 +37,18 @@ struct AppleMusicView: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(spacing: 0) {
+        @Bindable var store = store
+        return VStack(spacing: 0) {
             ContentHeader(title: "Apple Music", subtitle: "\(store.appleMusic.count) playlists") {
-                Button { store.loadAppleMusic() } label: {
-                    Label(store.appleMusicLoading ? "Loading…" : "Refresh", systemImage: "arrow.clockwise")
-                }.buttonStyle(SoftButton()).disabled(store.appleMusicLoading)
+                HStack(spacing: 10) {
+                    if !store.appleMusic.isEmpty {
+                        SegmentedControl(options: AMSort.allCases.map { ($0.rawValue, $0) },
+                                         selection: $store.appleMusicSort)
+                    }
+                    Button { store.loadAppleMusic() } label: {
+                        Label(store.appleMusicLoading ? "Loading…" : "Refresh", systemImage: "arrow.clockwise")
+                    }.buttonStyle(SoftButton()).disabled(store.appleMusicLoading)
+                }
             }
             Divider().overlay(theme.sep)
             if store.appleMusicLoading {
@@ -50,7 +57,7 @@ struct AppleMusicView: View {
                 emptyState
             } else {
                 ScrollOrStack(alignment: .leading) {
-                    ForEach(store.appleMusic) { col in row(col) }
+                    ForEach(store.sortedAppleMusic) { col in row(col) }
                 }
             }
         }
@@ -92,11 +99,15 @@ struct AppleMusicView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(col.name).font(.system(size: 13, weight: .medium)).foregroundStyle(theme.text).lineLimit(1)
-                    Text(col.kind.rawValue.capitalized).font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 6).padding(.vertical, 1)
-                        .background(theme.chip, in: Capsule()).foregroundStyle(theme.text3)
+                    if let tag = col.originTag {
+                        Text(tag).font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(Color(hex: 0x2e7bd6).opacity(0.16), in: Capsule())
+                            .foregroundStyle(Color(hex: 0x2e7bd6))
+                    }
                 }
-                Text("owned \(own.owned) of \(own.total)").font(.system(size: 11)).foregroundStyle(theme.text3)
+                Text("owned \(own.owned) of \(own.total)\(col.isUserMade ? "" : " · not yours")")
+                    .font(.system(size: 11)).foregroundStyle(theme.text3)
                 ProgressBar(value: frac).frame(width: 260)
             }
             Spacer()
@@ -105,7 +116,10 @@ struct AppleMusicView: View {
             } else {
                 Button("Mark \(own.missing.count) missing") { store.markMissing(col) }.buttonStyle(AccentButton())
             }
+            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.text3)
         }
         .padding(.horizontal, 20).padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .onTapGesture { store.openAMDetail(col) }
     }
 }

@@ -4,6 +4,13 @@ Running log of feedback from real use, with status. Newest first.
 
 ## 2026-07-22 session
 
+- [x] **Apple Music: sort + tags + drill-in.** Sort playlists by Name or Default (Music's
+  order — Apple's API doesn't expose a real creation date). Origin tag ("Apple Music"/"Smart"/
+  "Genius" + "not yours") for playlists not hand-made by the user. Click a playlist to open a
+  detail view: add individual missing tracks OR "Mark all missing" — all go to Pending, grouped
+  under the playlist name (recreated once downloaded).
+
+
 - [x] **Title-bar dead space FIXED** (confirmed from user screenshot — traffic lights,
   title, toggles on one row). `.ignoresSafeArea()` at the outermost window-content level.
 - [x] **Apple Music load slow / "stuck"** — the JXA fetched each track field one-by-one

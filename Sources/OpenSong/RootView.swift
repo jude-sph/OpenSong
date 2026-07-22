@@ -78,6 +78,7 @@ struct RootView: View {
         case .device: DeviceView()
         case .wishlist: WishlistView()
         case .appleMusic: AppleMusicView()
+        case .appleMusicDetail: AppleMusicDetailView()
         case .playlist(let id): PlaylistDetailView(playlistID: id)
         case .match(let id): MatchReviewView(wishID: id)
         }

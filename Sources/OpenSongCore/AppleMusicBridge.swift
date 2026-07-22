@@ -26,6 +26,9 @@ public struct AppleMusicBridge: Sendable {
           for (let i = 0; i < n; i++) {
             const pl = pls[i];
             let name; try { name = pl.name(); } catch (e) { continue; }
+            let smart = false, cls = '';
+            try { smart = pl.smart(); } catch (e) {}
+            try { cls = Automation.getDisplayString(pl.class()); } catch (e) { try { cls = String(pl.class()); } catch (e2) {} }
             let names = [], artists = [], albums = [], durs = [], locs = [], clouds = [];
             try { names = pl.tracks.name(); } catch (e) {}
             try { artists = pl.tracks.artist(); } catch (e) {}
@@ -45,7 +48,7 @@ public struct AppleMusicBridge: Sendable {
                 cloud: (cs === 'subscription' || cs === 'matched')
               });
             }
-            out.push({name: name, kind: 'playlist', tracks: tracks});
+            out.push({name: name, kind: 'playlist', smart: smart, cls: cls, tracks: tracks});
           }
           return JSON.stringify({collections: out});
         }

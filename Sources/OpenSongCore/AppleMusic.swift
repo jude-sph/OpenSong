@@ -33,9 +33,23 @@ public struct AppleMusicCollection: Sendable, Equatable, Identifiable {
     public var name: String
     public var kind: AppleMusicKind
     public var tracks: [AppleMusicTrack]
-    public init(name: String, kind: AppleMusicKind, tracks: [AppleMusicTrack]) {
-        self.name = name; self.kind = kind; self.tracks = tracks
+    public var smart: Bool
+    public var cls: String        // Music's class display string, e.g. "user playlist", "subscription playlist"
+    public init(name: String, kind: AppleMusicKind, tracks: [AppleMusicTrack],
+                smart: Bool = false, cls: String = "") {
+        self.name = name; self.kind = kind; self.tracks = tracks; self.smart = smart; self.cls = cls
     }
+
+    /// A short tag when the playlist wasn't hand-made by the user (smart, or added from the
+    /// Apple Music catalog / another user). nil for a normal user playlist.
+    public var originTag: String? {
+        let c = cls.lowercased()
+        if c.contains("subscription") || c.contains("radio") { return "Apple Music" }
+        if smart { return "Smart" }
+        if c.contains("genius") { return "Genius" }
+        return nil
+    }
+    public var isUserMade: Bool { originTag == nil }
 }
 
 /// Parses the JSON our JXA script emits from Music.app.
@@ -56,7 +70,9 @@ public enum AppleMusicParser {
                     location: (t["location"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                     isCloud: (t["cloud"] as? Bool) ?? false)
             }
-            return AppleMusicCollection(name: name, kind: kind, tracks: tracks)
+            return AppleMusicCollection(name: name, kind: kind, tracks: tracks,
+                                        smart: (col["smart"] as? Bool) ?? false,
+                                        cls: (col["cls"] as? String) ?? "")
         }
     }
 }

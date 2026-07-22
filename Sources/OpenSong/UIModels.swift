@@ -46,10 +46,12 @@ struct PlaylistRow: Identifiable, Hashable {
 }
 
 enum ActiveView: Hashable {
-    case allSongs, albums, artists, device, wishlist, appleMusic
+    case allSongs, albums, artists, device, wishlist, appleMusic, appleMusicDetail
     case playlist(Int64)
     case match(Int64)
 }
+
+enum AMSort: String, CaseIterable { case name = "Name", def = "Default" }
 
 struct DeviceState {
     var connected: Bool = false

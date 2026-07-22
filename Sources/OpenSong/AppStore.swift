@@ -53,6 +53,15 @@ final class AppStore {
     var appleMusic: [AppleMusicCollection] = []
     var appleMusicLoading = false
     var appleMusicError: String? = nil
+    var appleMusicSort: AMSort = .def
+    var amDetail: AppleMusicCollection? = nil
+
+    var sortedAppleMusic: [AppleMusicCollection] {
+        switch appleMusicSort {
+        case .name: return appleMusic.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .def: return appleMusic   // Music's own order (roughly by recency / manual)
+        }
+    }
 
     struct SyncPreview {
         var willAdd: [SongRow]
@@ -556,6 +565,31 @@ final class AppStore {
         lastMessage = "Added \(missing.count) missing track(s)\(group.map { " from “\($0)”" } ?? "") to Pending."
     }
 
+    func openAMDetail(_ col: AppleMusicCollection) {
+        amDetail = col
+        activeView = .appleMusicDetail
+    }
+
+    /// Add a single Apple Music track to Pending (grouped under its playlist).
+    func addTrackToPending(_ track: AppleMusicTrack, group: String?) {
+        guard let store else { return }
+        var w = track.wishItem; w.playlistName = group
+        _ = try? store.addWish(w)
+        reload()
+        lastMessage = "Added “\(track.name)” to Pending."
+    }
+
+    /// Whether a given Apple Music track is already owned in the library.
+    func isOwned(_ track: AppleMusicTrack) -> Bool {
+        let lib = songs.map { AppleMusicCompare.LibraryTrack(title: $0.title, artist: $0.artist, album: $0.album, durationSec: $0.durationSec) }
+        return lib.contains { AppleMusicCompare.matches(track, $0) }
+    }
+
+    /// Whether a track is already in Pending.
+    func isPending(_ track: AppleMusicTrack) -> Bool {
+        wishItems.contains { $0.title == track.name && $0.artist == track.artist }
+    }
+
     /// After a grouped wish downloads, recreate the OpenSong playlist once all its tracks
     /// are present (and one doesn't already exist).
     private func maybeRecreatePlaylist(wishID: Int64) {
@@ -602,7 +636,10 @@ final class AppStore {
             AppleMusicCollection(name: "late night mix", kind: .playlist, tracks: [
                 tr("Ivy", "Frank Ocean", "Blonde", 249), tr("Aruarian Dance", "Nujabes", "Departure", 244),
                 tr("Peaceland", "Nujabes", "Modal Soul", 201),
-            ]),
+            ], cls: "subscription playlist"),
+            AppleMusicCollection(name: "chill focus", kind: .playlist, tracks: [
+                tr("Avril 14th", "Aphex Twin", "Drukqs", 125), tr("Ivy", "Frank Ocean", "Blonde", 249),
+            ], smart: true, cls: "smart playlist"),
         ]
     }
 
