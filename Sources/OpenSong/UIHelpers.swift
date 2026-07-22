@@ -73,6 +73,36 @@ struct ToggleRow: View {
     }
 }
 
+/// A draggable bar (scrubber / volume). Custom so it works live AND renders offscreen.
+struct DragBar: View {
+    var value: Double            // 0...1
+    var onChange: (Double) -> Void
+    var height: CGFloat = 4
+    var knob: Bool = true
+    @Environment(\.theme) private var theme
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let frac = max(0, min(1, value))
+            ZStack(alignment: .leading) {
+                Capsule().fill(theme.track).frame(height: height)
+                Capsule().fill(theme.accent).frame(width: frac * w, height: height)
+                if knob {
+                    Circle().fill(.white).frame(width: height * 2.6, height: height * 2.6)
+                        .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
+                        .offset(x: frac * w - height * 1.3)
+                }
+            }
+            .frame(height: max(height * 2.6, 12))
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                onChange(min(1, max(0, g.location.x / max(1, w))))
+            })
+        }
+        .frame(height: max(height * 2.6, 12))
+    }
+}
+
 /// Custom progress bar (ProgressView renders as a placeholder offscreen).
 struct ProgressBar: View {
     var value: Double

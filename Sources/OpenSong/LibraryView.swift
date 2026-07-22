@@ -137,10 +137,10 @@ struct SongsTable: View {
                 ForEach(Array(store.filteredSongs.enumerated()), id: \.element.id) { idx, song in
                     rowView(song, striped: idx % 2 == 1)
                         .contentShape(Rectangle())
-                        .onTapGesture(count: 2) { store.player.play(song) }
+                        .onTapGesture(count: 2) { store.player.play(song, in: store.filteredSongs) }
                         .onTapGesture { store.selection = [song.id] }
                         .contextMenu {
-                            Button("Play") { store.player.play(song) }
+                            Button("Play") { store.player.play(song, in: store.filteredSongs) }
                             Button("Edit Metadata…") { store.openSheet = .metadata(song.id) }
                             Button(song.onDevice ? "Unpin from Device" : "Pin to Device") {
                                 store.pin(song.id, !song.onDevice)
@@ -251,7 +251,8 @@ struct ArtistsList: View {
             VStack(spacing: 0) {
                 ForEach(store.artists) { artist in
                     HStack(spacing: 12) {
-                        Circle().fill(placeholderGradient(artist.name)).frame(width: 52, height: 52)
+                        ArtworkThumbnail(path: store.songs.first { $0.artist == artist.name }?.path ?? "",
+                                         seed: artist.name, size: 52, corner: 26)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(artist.name).font(.system(size: 14, weight: .medium)).foregroundStyle(theme.text)
                             Text("\(artist.albumCount) albums · \(artist.songCount) songs")

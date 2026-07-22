@@ -24,14 +24,50 @@ struct WishlistView: View {
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollOrStack(alignment: .leading) {
-                    ForEach(store.wishItems, id: \.id) { wish in row(wish) }
+                    let groups = Dictionary(grouping: store.wishItems.filter { $0.playlistName != nil },
+                                            by: { $0.playlistName! })
+                    let loose = store.wishItems.filter { $0.playlistName == nil }
+                    ForEach(groups.keys.sorted(), id: \.self) { name in
+                        groupHeader(name, groups[name] ?? [])
+                        ForEach(groups[name] ?? [], id: \.id) { wish in row(wish, indented: true) }
+                    }
+                    if !loose.isEmpty {
+                        if !groups.isEmpty { sectionLabel("Songs") }
+                        ForEach(loose, id: \.id) { wish in row(wish) }
+                    }
                 }
             }
         }
     }
 
-    private func row(_ wish: WishItem) -> some View {
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.4)
+            .foregroundStyle(theme.text3).padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func groupHeader(_ name: String, _ items: [WishItem]) -> some View {
+        let downloaded = items.filter { $0.state == .downloaded }.count
+        let pending = items.filter { $0.state != .downloaded }
+        return HStack(spacing: 10) {
+            Image(systemName: "music.note.list").font(.system(size: 13)).foregroundStyle(theme.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name).font(.system(size: 13, weight: .semibold)).foregroundStyle(theme.text)
+                Text("\(items.count) tracks · \(downloaded) downloaded").font(.system(size: 11)).foregroundStyle(theme.text3)
+            }
+            Spacer()
+            if let first = pending.first, let id = first.id {
+                Button("Review \(pending.count)") { store.beginMatch(id) }.buttonStyle(SoftButton())
+            } else {
+                Label("Complete", systemImage: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(theme.green)
+            }
+        }
+        .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
+    }
+
+    private func row(_ wish: WishItem, indented: Bool = false) -> some View {
         HStack(spacing: 12) {
+            if indented { Color.clear.frame(width: 16) }
             statePill(wish.state)
             VStack(alignment: .leading, spacing: 1) {
                 Text(wish.title).font(.system(size: 13)).foregroundStyle(theme.text).lineLimit(1)

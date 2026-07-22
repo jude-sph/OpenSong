@@ -97,12 +97,16 @@ public struct WishItem: Codable, Equatable, Sendable {
     public var state: WishState
     public var chosenURL: String?
     public var assetID: Int64?
+    /// When set, this wish belongs to a wishlist "playlist" group (e.g. an Apple Music
+    /// playlist) that OpenSong recreates once all its tracks are downloaded.
+    public var playlistName: String?
     public init(id: Int64? = nil, title: String, artist: String, album: String? = nil,
                 durationSec: Double? = nil, source: WishSource = .custom,
-                state: WishState = .wishlist, chosenURL: String? = nil, assetID: Int64? = nil) {
+                state: WishState = .wishlist, chosenURL: String? = nil, assetID: Int64? = nil,
+                playlistName: String? = nil) {
         self.id = id; self.title = title; self.artist = artist; self.album = album
         self.durationSec = durationSec; self.source = source; self.state = state
-        self.chosenURL = chosenURL; self.assetID = assetID
+        self.chosenURL = chosenURL; self.assetID = assetID; self.playlistName = playlistName
     }
     /// The identity this wish resolves to (for search + metadata stamping).
     public var identity: TrackIdentity {

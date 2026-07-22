@@ -486,6 +486,7 @@ final class AppStore {
             switch await Self.acquireWork(coord, wish, candidate, dir) {
             case .success(let v):
                 self.matchVerify = v; self.matchStep = .done; self.reload()
+                self.maybeRecreatePlaylist(wishID: wishID)
             case .failure:
                 self.matchStep = .error
             }
@@ -505,6 +506,9 @@ final class AppStore {
         _ = try? store.addWish(WishItem(title: "Windowlicker", artist: "Aphex Twin", album: "Windowlicker", durationSec: 363, source: .custom, state: .wishlist))
         _ = try? store.addWish(WishItem(title: "Xtal", artist: "Aphex Twin", album: "Selected Ambient Works 85-92", durationSec: 293, source: .appleMusic, state: .matching))
         _ = try? store.addWish(WishItem(title: "Ageispolis", artist: "Aphex Twin", durationSec: 323, source: .appleMusic, state: .downloaded, assetID: 1))
+        // A grouped playlist from Apple Music.
+        _ = try? store.addWish(WishItem(title: "Nights", artist: "Frank Ocean", album: "Blonde", durationSec: 307, source: .appleMusic, state: .wishlist, playlistName: "blonde faves"))
+        _ = try? store.addWish(WishItem(title: "White Ferrari", artist: "Frank Ocean", album: "Blonde", durationSec: 248, source: .appleMusic, state: .matching, playlistName: "blonde faves"))
         reload()
     }
     func seedMatchForRender() {
@@ -543,9 +547,31 @@ final class AppStore {
     func markMissing(_ col: AppleMusicCollection) {
         guard let store else { return }
         let missing = ownership(col).missing
-        for tr in missing { _ = try? store.addWish(tr.wishItem) }
+        let group = col.kind == .playlist ? col.name : nil   // keep playlists grouped
+        for tr in missing {
+            var w = tr.wishItem; w.playlistName = group
+            _ = try? store.addWish(w)
+        }
         reload()
-        lastMessage = "Added \(missing.count) missing track(s) to the wishlist."
+        lastMessage = "Added \(missing.count) missing track(s)\(group.map { " from “\($0)”" } ?? "") to Pending."
+    }
+
+    /// After a grouped wish downloads, recreate the OpenSong playlist once all its tracks
+    /// are present (and one doesn't already exist).
+    private func maybeRecreatePlaylist(wishID: Int64) {
+        guard let store,
+              let done = wishItems.first(where: { $0.id == wishID }),
+              let name = done.playlistName else { return }
+        let group = wishItems.filter { $0.playlistName == name }
+        guard group.allSatisfy({ $0.state == .downloaded }) else { return }
+        let existing = (try? store.allPlaylists())?.contains { $0.name == name } ?? false
+        guard !existing else { return }
+        let assetIDs = group.compactMap { $0.assetID }
+        if let plID = try? store.createPlaylist(name: name, syncToDevice: false) {
+            for (i, aid) in assetIDs.enumerated() { try? store.addToPlaylist(playlistID: plID, assetID: aid, position: i) }
+            reload()
+            lastMessage = "Recreated playlist “\(name)”."
+        }
     }
 
     func importLocal(_ track: AppleMusicTrack) {

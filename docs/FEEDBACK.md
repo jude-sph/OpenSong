@@ -4,6 +4,16 @@ Running log of feedback from real use, with status. Newest first.
 
 ## 2026-07-22 session
 
+- [x] **Pending should hold playlists, not just songs.** Fix: wish items can carry a
+  `playlistName` group (Apple Music playlists mark grouped); Pending shows grouped playlists
+  (with counts + "Review N") above loose songs; the OpenSong playlist is recreated once all
+  its tracks download.
+- [x] **Player too basic.** Fix: scrubber (drag to seek), prev/next with a queue (double-click
+  plays the whole current list), auto-advance, working volume slider + mute, current/total time.
+- [x] **Artist screen blank avatar.** iTunes has no artist-photo API, so the avatar now uses a
+  representative album cover from that artist's music (real image, gradient fallback).
+
+
 - [x] **Album art not shown** (app drew gradients; files have embedded covers). Fix:
   `ArtworkThumbnail` + `ArtworkCache` extract embedded art via ffmpeg on first display and
   cache it (self-healing); used in song rows, albums grid, metadata editor, player bar.

@@ -136,6 +136,11 @@ public final class LibraryStore: @unchecked Sendable {
                 t.column("assetID", .integer)
             }
         }
+        m.registerMigration("v4-wish-playlist") { db in
+            try db.alter(table: "wish_item") { t in
+                t.add(column: "playlistName", .text)
+            }
+        }
         return m
     }
 
