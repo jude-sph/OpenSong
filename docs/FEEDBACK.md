@@ -1,0 +1,39 @@
+# OpenSong — User Feedback & Fixes Log
+
+Running log of feedback from real use, with status. Newest first.
+
+## 2026-07-22 session
+
+- [x] **Sidebar rows only clickable on the text** — the whole row should be clickable.
+  Fix: added `.contentShape(Rectangle())` to sidebar row buttons.
+
+- [x] **Import of ~10 loose files hangs with no progress (UI frozen).** Root causes (not
+  file size):
+  1. All import work ran on the **main actor** (`scanAndReview` was `@MainActor`) → any
+     blocking froze the whole UI. Fix: moved scan+resolve into a `Task.detached`.
+  2. Picking individual **files** scanned each file's **parent folder recursively** (×N) →
+     could `ffprobe` a whole tree. Fix: `Importer.scan(files:)` scans only the chosen files;
+     only chosen *directories* are walked.
+  3. iTunes lookups had **no timeout** (URLSession resource timeout defaults to 7 days) →
+     a stalled request hangs import indefinitely. Fix: `URLSessionHTTPClient` now uses a
+     10 s request+resource timeout; suggestions are best-effort.
+
+- [x] **Apple Music "Grant access & load" does nothing.** Cause: Music.app wasn't running,
+  so the JXA returned empty. Fix: bridge now `Music.launch()`es before reading.
+
+- [ ] **Title bar takes too much vertical space** (empty strip above the custom bar).
+  Cause: the window reserves the native titlebar height above the custom 44px `TitleBar`.
+  Fix: set `fullSizeContentView` + transparent titlebar so content reaches the top.
+
+- [ ] **Pending (wishlist) should hold playlists too, not just songs.** Needs a wishlist
+  "playlist" grouping (e.g. mark a whole Apple Music playlist → pending, recreate on import).
+
+## Known environment gotchas (for future sessions)
+- **Ad-hoc signing resets TCC**: each `make-app.sh` rebuild changes the ad-hoc signature, so
+  macOS Automation/Screen-Recording permission may re-prompt after every rebuild.
+- **ImageRenderer** (offscreen screenshots) can't rasterize `ScrollView` content or AppKit
+  controls (`Picker`/`TextField`/`Toggle`/`ProgressView`) → use custom SwiftUI + `renderMode`.
+- **Stale SwiftPM build cache**: if tests/behavior look stale or a link error mentions missing
+  `.o` files, run `swift package clean`.
+- **Live screenshots blocked**: the automation session can't composite the app window to the
+  display (Spaces); verify UI via `OPENSONG_RENDER=1` offscreen render instead.

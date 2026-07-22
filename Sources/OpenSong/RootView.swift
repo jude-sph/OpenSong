@@ -14,6 +14,11 @@ struct WindowConfigurator: NSViewRepresentable {
             w.isOpaque = true
             w.backgroundColor = NSColor.windowBackgroundColor
             w.hasShadow = true
+            // Pull content under the title bar so our custom 44px TitleBar sits at the very
+            // top (traffic lights float over its left gutter) — no empty native strip above.
+            w.titlebarAppearsTransparent = true
+            w.titleVisibility = .hidden
+            w.styleMask.insert(.fullSizeContentView)
             let shot = ProcessInfo.processInfo.environment["OPENSONG_SCREENSHOT"] == "1"
             if shot {
                 w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

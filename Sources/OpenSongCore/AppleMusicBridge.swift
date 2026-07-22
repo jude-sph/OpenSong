@@ -17,7 +17,7 @@ public struct AppleMusicBridge: Sendable {
         """
         function run() {
           const Music = Application('Music');
-          if (!Music.running()) { return JSON.stringify({collections: []}); }
+          try { Music.launch(); } catch (e) {}
           const out = [];
           const pls = Music.userPlaylists();
           const n = Math.min(pls.length, \(playlistLimit));

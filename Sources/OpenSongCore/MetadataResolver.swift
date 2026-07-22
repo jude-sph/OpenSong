@@ -18,9 +18,18 @@ public protocol HTTPClient: Sendable {
 }
 
 public struct URLSessionHTTPClient: HTTPClient {
-    public init() {}
+    private let session: URLSession
+    /// `timeout` bounds BOTH the request and the resource (URLSession's resource timeout
+    /// otherwise defaults to 7 days, which can hang a lookup indefinitely on a stalled network).
+    public init(timeout: TimeInterval = 10) {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = timeout
+        config.timeoutIntervalForResource = timeout
+        config.waitsForConnectivity = false
+        session = URLSession(configuration: config)
+    }
     public func get(_ url: URL) async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await session.data(from: url)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             throw NSError(domain: "HTTPClient", code: http.statusCode,
                           userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"])

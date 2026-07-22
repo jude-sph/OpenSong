@@ -57,6 +57,7 @@ struct Sidebar: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isActive(view) ? theme.accent : Color.clear,
                         in: RoundedRectangle(cornerRadius: 7))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -79,6 +80,7 @@ struct Sidebar: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isActive(.device) ? theme.accent : Color.clear,
                         in: RoundedRectangle(cornerRadius: 7))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

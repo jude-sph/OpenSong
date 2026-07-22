@@ -36,11 +36,16 @@ public struct Importer: Sendable {
 
     // MARK: loose import
 
-    /// Scan a folder for audio files and build review candidates from their existing tags.
+    /// Scan a folder (recursively) for audio files and build review candidates.
     public func scanLoose(_ folder: URL) throws -> [ImportCandidate] {
-        let files = try audioFiles(under: folder)
+        try scan(files: audioFiles(under: folder))
+    }
+
+    /// Build review candidates from a specific list of files (used when the user picks
+    /// individual files rather than folders — we do NOT scan their parent directories).
+    public func scan(files: [URL]) throws -> [ImportCandidate] {
         var candidates: [ImportCandidate] = []
-        for file in files {
+        for file in files where Self.audioExtensions.contains(file.pathExtension.lowercased()) {
             let pr = try probe.probe(file)
             let original = identity(from: pr, fallbackTitle: file.deletingPathExtension().lastPathComponent)
             candidates.append(ImportCandidate(sourceURL: file, probe: pr,

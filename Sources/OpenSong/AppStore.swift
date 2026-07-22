@@ -61,7 +61,7 @@ final class AppStore {
         var projectedUsedBytes: Int64
     }
 
-    struct ImportRow: Identifiable {
+    struct ImportRow: Identifiable, Sendable {
         let id = UUID()
         var candidate: ImportCandidate
         var useSuggested: Bool
@@ -243,32 +243,40 @@ final class AppStore {
         panel.allowsMultipleSelection = true
         panel.prompt = "Scan"
         panel.message = "Choose one or more folders (or files) of loose music to import."
-        guard panel.runModal() == .OK else { return }
+        guard panel.runModal() == .OK, let importer else { return }
         let urls = panel.urls
         importing = true
-        activity = [ActivityTask(label: "Scanning \(urls.count) location(s)…", progress: 0)]
-        Task { await scanAndReview(urls) }
+        activity = [ActivityTask(label: "Scanning \(urls.count) item(s)…", progress: 0)]
+        Task {
+            let rows = await Self.scanWork(importer, urls)
+            self.importRows = rows
+            self.importing = false
+            self.activity = []
+            if rows.isEmpty {
+                self.lastMessage = "No audio files found in the chosen item(s)."
+            } else {
+                self.openSheet = .importReview
+            }
+        }
     }
 
-    private func scanAndReview(_ urls: [URL]) async {
-        guard let importer else { importing = false; activity = []; return }
-        var candidates: [ImportCandidate] = []
-        for url in urls {
-            var isDir: ObjCBool = false
-            FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
-            let folder = isDir.boolValue ? url : url.deletingLastPathComponent()
-            candidates += (try? importer.scanLoose(folder)) ?? []
-        }
-        activity = [ActivityTask(label: "Resolving metadata for \(candidates.count) track(s)…", progress: 0.5)]
-        await importer.resolveSuggestions(&candidates)
-        importRows = candidates.map { ImportRow(candidate: $0, useSuggested: $0.suggested != nil) }
-        importing = false
-        activity = []
-        if importRows.isEmpty {
-            lastMessage = "No audio files found in the chosen location(s)."
-        } else {
-            openSheet = .importReview
-        }
+    /// Scan chosen files/folders and resolve iTunes suggestions — entirely off the main
+    /// thread. Individually-chosen files are scanned directly (their parent folders are NOT
+    /// walked); only chosen directories are scanned recursively.
+    private nonisolated static func scanWork(_ importer: Importer, _ urls: [URL]) async -> [ImportRow] {
+        await Task.detached {
+            var files: [URL] = []
+            var candidates: [ImportCandidate] = []
+            for url in urls {
+                var isDir: ObjCBool = false
+                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+                if isDir.boolValue { candidates += (try? importer.scanLoose(url)) ?? [] }
+                else { files.append(url) }
+            }
+            candidates += (try? importer.scan(files: files)) ?? []
+            await importer.resolveSuggestions(&candidates)
+            return candidates.map { ImportRow(candidate: $0, useSuggested: $0.suggested != nil) }
+        }.value
     }
 
     func commitImport() {
