@@ -20,8 +20,8 @@ spec→plan cycles (will be added tonight if time allows).
 - [x] Task 11 — ArtworkResolver (extract/embed/download)
 - [x] Task 12 — Importer (loose import + adopt-from-device)
 - [x] Task 13 — Volume + DeviceManager (scope-guarded)
-- [ ] Task 14 — SyncEngine (reconcile) ← in progress
-- [ ] Task 15 — End-to-end engine integration test
+- [x] Task 14 — SyncEngine (reconcile) (done)
+- [x] Task 15 — End-to-end engine integration test
 
 ### UI (SwiftUI, recreates design docs; compiled + screenshotted tonight)
 - [ ] Task 16 — Design tokens + app shell
@@ -50,5 +50,5 @@ spec→plan cycles (will be added tonight if time allows).
 - Stretch: embedding playlists/dedup, mood/BPM, capacity optimizer
 
 ## Test status
-`swift run OpenSongTests` — 45 passing, 1 live-only skipped (as of Task 13).
+`swift run OpenSongTests` — 50 passing, 1 live-only skipped (as of Task 15). ENGINE COMPLETE.
 Run live network tests with `OPENSONG_LIVE=1 swift run OpenSongTests`.

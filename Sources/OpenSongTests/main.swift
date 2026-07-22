@@ -23,5 +23,6 @@ registerArtworkResolverTests()
 registerImporterTests()
 registerDeviceManagerTests()
 registerSyncEngineTests()
+registerEndToEndTests()
 
 t.runAll()
