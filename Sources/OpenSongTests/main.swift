@@ -10,5 +10,6 @@ t.test("harness works") {
 }
 
 registerPathSanitizerTests()
+registerModelsTests()
 
 t.runAll()
