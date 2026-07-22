@@ -7,6 +7,9 @@ public struct RankedCandidate: Sendable, Identifiable {
     public var candidate: Candidate
     public var durationDelta: Double     // seconds vs the known length (inf if unknown)
     public var confidence: MatchConfidence
+    public init(candidate: Candidate, durationDelta: Double, confidence: MatchConfidence) {
+        self.candidate = candidate; self.durationDelta = durationDelta; self.confidence = confidence
+    }
 }
 
 public struct VerifyResult: Sendable {

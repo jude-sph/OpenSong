@@ -62,6 +62,7 @@ struct RootView: View {
                     .environment(store).environment(\.theme, theme)
             case .settings: SettingsView().environment(store).environment(\.theme, theme)
             case .importReview: ImportReviewView().environment(store).environment(\.theme, theme)
+            case .addWish: AddWishView().environment(store).environment(\.theme, theme)
             }
         }
     }
@@ -70,7 +71,9 @@ struct RootView: View {
         switch store.activeView {
         case .allSongs, .albums, .artists: LibraryView()
         case .device: DeviceView()
+        case .wishlist: WishlistView()
         case .playlist(let id): PlaylistDetailView(playlistID: id)
+        case .match(let id): MatchReviewView(wishID: id)
         }
     }
 }

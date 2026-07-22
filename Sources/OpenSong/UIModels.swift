@@ -46,8 +46,9 @@ struct PlaylistRow: Identifiable, Hashable {
 }
 
 enum ActiveView: Hashable {
-    case allSongs, albums, artists, device
+    case allSongs, albums, artists, device, wishlist
     case playlist(Int64)
+    case match(Int64)
 }
 
 struct DeviceState {
@@ -69,6 +70,8 @@ struct AppSettings: Codable {
     var aiCleanup: Bool = true
     var fingerprint: Bool = true
     var qualityCheck: Bool = true
+    var acoustidAPIKey: String = ""
+    var searchLimit: Int = 8
 }
 
 struct ActivityTask: Identifiable {

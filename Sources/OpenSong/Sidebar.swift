@@ -21,7 +21,7 @@ struct Sidebar: View {
                 deviceRow()
 
                 section("WISHLIST")
-                dimRow("Pending", "bookmark", badge: 0)
+                row("Pending", "bookmark", view: .wishlist)
                 section("APPLE MUSIC")
                 dimRow("Compare", "square.on.square", badge: nil)
             }

@@ -50,24 +50,34 @@ func renderScreens() {
     write("08-metadata-dark", dark: true, size: CGSize(width: 560, height: 460)) {
         SheetShot { MetadataEditorFirst() }
     }
+    // Wishlist (Phase 2)
+    write("09-wishlist-light", dark: false, size: winSize) { RootShot(view: .wishlist, seedWishes: true) }
+    // Match review (Phase 2)
+    write("10-match-dark", dark: true, size: winSize) { RootShot(view: .match, seedWishes: true) }
 }
 
 /// Renders RootView with a pre-set active view (and optional simulated device).
 private struct RootShot: View {
-    enum Which { case allSongs, albums, artists, device, firstPlaylist }
+    enum Which { case allSongs, albums, artists, device, firstPlaylist, wishlist, match }
     let view: Which
     var simulateDevice: Bool = false
+    var seedWishes: Bool = false
     @Environment(AppStore.self) private var store
     var body: some View {
         configure()
         return RootView()
     }
     private func configure() {
+        if seedWishes { store.seedWishesForRender() }
         switch view {
         case .allSongs: store.activeView = .allSongs
         case .albums: store.activeView = .albums
         case .artists: store.activeView = .artists
         case .device: store.activeView = .device
+        case .wishlist: store.activeView = .wishlist
+        case .match:
+            store.seedMatchForRender()
+            if let id = store.matchWishID { store.activeView = .match(id) }
         case .firstPlaylist:
             if let pl = store.playlists.first { store.activeView = .playlist(pl.id) }
         }

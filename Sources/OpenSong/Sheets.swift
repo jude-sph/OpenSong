@@ -116,9 +116,24 @@ struct SettingsView: View {
                 pathRow(store.settings.ffmpegPath) { store.chooseToolPath(\.ffmpegPath) }
             }
             group("Smart Features") {
-                ToggleRow(label: "AI metadata cleanup", isOn: $store.settings.aiCleanup)
-                ToggleRow(label: "Fingerprint match verification", isOn: $store.settings.fingerprint)
-                ToggleRow(label: "Audio quality checking", isOn: $store.settings.qualityCheck)
+                ToggleRow(label: "Fingerprint match verification (AcoustID)", isOn: $store.settings.fingerprint)
+                ToggleRow(label: "Audio quality checking (spectral)", isOn: $store.settings.qualityCheck)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("AcoustID API key (free — acoustid.org)").font(.system(size: 11)).foregroundStyle(theme.text3)
+                    if renderMode {
+                        Text(store.settings.acoustidAPIKey.isEmpty ? "not set" : "••••••••")
+                            .font(.system(size: 12, design: .monospaced)).foregroundStyle(theme.text3)
+                            .padding(.horizontal, 8).frame(height: 28).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(theme.field, in: RoundedRectangle(cornerRadius: 7))
+                            .overlay(RoundedRectangle(cornerRadius: 7).stroke(theme.fieldBorder, lineWidth: 1))
+                    } else {
+                        TextField("paste key to enable acoustic verification", text: $store.settings.acoustidAPIKey)
+                            .textFieldStyle(.plain).font(.system(size: 12))
+                            .padding(.horizontal, 8).frame(height: 28)
+                            .background(theme.field, in: RoundedRectangle(cornerRadius: 7))
+                            .overlay(RoundedRectangle(cornerRadius: 7).stroke(theme.fieldBorder, lineWidth: 1))
+                    }
+                }
             }
             Spacer()
         }

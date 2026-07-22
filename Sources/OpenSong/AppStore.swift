@@ -17,12 +17,13 @@ final class AppStore {
     var filterAlbumID: String? = nil
 
     enum Sheet: Identifiable, Equatable {
-        case metadata(Int64), settings, importReview
+        case metadata(Int64), settings, importReview, addWish
         var id: String {
             switch self {
             case .metadata(let i): return "meta-\(i)"
             case .settings: return "settings"
             case .importReview: return "import"
+            case .addWish: return "addWish"
             }
         }
     }
@@ -38,6 +39,15 @@ final class AppStore {
     var importing = false
     var importRows: [ImportRow] = []
     var lastMessage: String? = nil
+
+    // Wishlist / acquisition (Phase 2)
+    var wishItems: [WishItem] = []
+    var matchWishID: Int64? = nil
+    var matchStep: MatchStep = .loading
+    var matchCandidates: [RankedCandidate] = []
+    var selectedCandidateID: String? = nil
+    var matchVerify: VerifyResult? = nil
+    enum MatchStep: Equatable { case loading, results, downloading, done, error }
 
     struct SyncPreview {
         var willAdd: [SongRow]
@@ -156,6 +166,7 @@ final class AppStore {
                 return PlaylistRow(id: pl.id!, name: pl.name, syncToDevice: pl.syncToDevice,
                                    songIDs: items.compactMap { $0.id })
             }
+            wishItems = try store.allWishes()
         } catch { print("reload error: \(error)") }
     }
 
@@ -393,6 +404,117 @@ final class AppStore {
         if panel.runModal() == .OK, let url = panel.url {
             settings[keyPath: keyPath] = url.path
         }
+    }
+
+    // MARK: wishlist / acquisition (Phase 2)
+
+    func addCustomWish(title: String, artist: String, album: String) {
+        guard let store, !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        _ = try? store.addWish(WishItem(title: title, artist: artist,
+                                        album: album.isEmpty ? nil : album, source: .custom))
+        reload()
+    }
+
+    func deleteWish(_ id: Int64) { try? store?.deleteWish(id); reload() }
+
+    private func buildCoordinator() throws -> AcquireCoordinator {
+        guard let store, let importer else { throw NSError(domain: "OpenSong", code: 1) }
+        return AcquireCoordinator(
+            store: store,
+            source: YtDlpSource(ytDlpPath: settings.ytDlpPath),
+            importer: importer,
+            artwork: ArtworkResolver(ffmpegPath: settings.ffmpegPath),
+            spectral: SpectralAnalyzer(ffmpegPath: settings.ffmpegPath),
+            fingerprinter: Fingerprinter(),
+            acoustid: AcoustIDClient(),
+            probe: probe,
+            settings: AcquireSettings(acoustidAPIKey: settings.acoustidAPIKey, searchLimit: settings.searchLimit))
+    }
+
+    private func downloadDir() throws -> URL {
+        let d = try supportDir().appendingPathComponent("Downloads")
+        try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }
+
+    func beginMatch(_ wishID: Int64) {
+        guard let wish = wishItems.first(where: { $0.id == wishID }) else { return }
+        matchWishID = wishID
+        activeView = .match(wishID)
+        matchStep = .loading
+        matchCandidates = []; matchVerify = nil; selectedCandidateID = nil
+        var w = wish; w.state = .matching; try? store?.updateWish(w); reload()
+        guard let coord = try? buildCoordinator() else { matchStep = .error; return }
+        Task {
+            switch await Self.searchWork(coord, wish) {
+            case .success(let ranked):
+                self.matchCandidates = ranked
+                self.selectedCandidateID = ranked.first?.id
+                self.matchStep = ranked.isEmpty ? .error : .results
+            case .failure:
+                self.matchStep = .error
+            }
+        }
+    }
+
+    func acquireSelected() {
+        guard let wishID = matchWishID,
+              let wish = wishItems.first(where: { $0.id == wishID }),
+              let candID = selectedCandidateID,
+              let ranked = matchCandidates.first(where: { $0.id == candID }),
+              let coord = try? buildCoordinator(),
+              let dir = try? downloadDir() else { matchStep = .error; return }
+        matchStep = .downloading
+        let candidate = ranked.candidate
+        Task {
+            switch await Self.acquireWork(coord, wish, candidate, dir) {
+            case .success(let v):
+                self.matchVerify = v; self.matchStep = .done; self.reload()
+            case .failure:
+                self.matchStep = .error
+            }
+        }
+    }
+
+    func pasteCustomURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        let c = Candidate(videoID: url.absoluteString, url: url, title: "Custom URL", channel: "", durationSec: 0)
+        matchCandidates.insert(RankedCandidate(candidate: c, durationDelta: .infinity, confidence: .medium), at: 0)
+        selectedCandidateID = c.id
+    }
+
+    // Render-only seeding for screenshots.
+    func seedWishesForRender() {
+        guard let store, ((try? store.allWishes())?.isEmpty ?? false) else { reload(); return }
+        _ = try? store.addWish(WishItem(title: "Windowlicker", artist: "Aphex Twin", album: "Windowlicker", durationSec: 363, source: .custom, state: .wishlist))
+        _ = try? store.addWish(WishItem(title: "Xtal", artist: "Aphex Twin", album: "Selected Ambient Works 85-92", durationSec: 293, source: .appleMusic, state: .matching))
+        _ = try? store.addWish(WishItem(title: "Ageispolis", artist: "Aphex Twin", durationSec: 323, source: .appleMusic, state: .downloaded, assetID: 1))
+        reload()
+    }
+    func seedMatchForRender() {
+        seedWishesForRender()
+        guard let w = wishItems.first(where: { $0.state == .matching }) ?? wishItems.first else { return }
+        matchWishID = w.id
+        matchStep = .results
+        matchCandidates = [
+            RankedCandidate(candidate: Candidate(videoID: "a", url: URL(string: "https://y/a")!, title: "Aphex Twin - Xtal", channel: "WARP Records", durationSec: 293, viewCount: 2_400_000), durationDelta: 0, confidence: .high),
+            RankedCandidate(candidate: Candidate(videoID: "b", url: URL(string: "https://y/b")!, title: "Xtal (Aphex Twin) HQ Audio", channel: "ambient vibes", durationSec: 296, viewCount: 120_000), durationDelta: 3, confidence: .medium),
+            RankedCandidate(candidate: Candidate(videoID: "c", url: URL(string: "https://y/c")!, title: "Xtal - live edit 2011", channel: "bootlegs", durationSec: 410, viewCount: 5_000), durationDelta: 117, confidence: .low),
+        ]
+        selectedCandidateID = "a"
+    }
+
+    private nonisolated static func searchWork(_ coord: AcquireCoordinator, _ wish: WishItem) async -> Result<[RankedCandidate], Error> {
+        await Task.detached {
+            do { return .success(try await coord.candidates(for: wish)) }
+            catch { return .failure(error) }
+        }.value
+    }
+    private nonisolated static func acquireWork(_ coord: AcquireCoordinator, _ wish: WishItem, _ candidate: Candidate, _ dir: URL) async -> Result<VerifyResult, Error> {
+        await Task.detached {
+            do { let r = try await coord.acquire(wish, chosen: candidate, art: nil, downloadDir: dir); return .success(r.verify) }
+            catch { return .failure(error) }
+        }.value
     }
 }
 

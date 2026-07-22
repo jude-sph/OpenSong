@@ -38,7 +38,11 @@ spec→plan cycles (will be added tonight if time allows).
 - [x] Task 25 — .app bundle assembly + launch + screenshot
 - [x] Task 26 — Morning handoff report
 
-## Phase 2 — Acquisition (yt-dlp) — not yet spec'd
+## Phase 2 — Acquisition (yt-dlp) — COMPLETE
+- [x] TitleCleaner, YtDlpSource (live search verified)
+- [x] SpectralAnalyzer, Fingerprinter + AcoustID
+- [x] ArtworkCrop, WishlistStore, AcquireCoordinator (full pipeline)
+- [x] UI: Wishlist/Pending + Match review + settings AcoustID key
 - yt-dlp candidate review → download pipeline
 - Metadata cleanup (heuristic/Ollama now; Foundation Models when on macOS 26)
 - Acoustic fingerprint verification (needs `fpcalc`)
