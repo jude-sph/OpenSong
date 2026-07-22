@@ -11,7 +11,9 @@ struct ScrollOrStack<C: View>: View {
     @ViewBuilder var content: C
     var body: some View {
         if renderMode {
-            VStack(alignment: alignment, spacing: 0) { content }
+            // Trailing spacer so render-mode content top-aligns like the real ScrollView
+            // (otherwise a maxHeight frame vertically-centers it → spurious gaps).
+            VStack(alignment: alignment, spacing: 0) { content; Spacer(minLength: 0) }
         } else {
             // LazyVStack so off-screen rows don't run their artwork-extraction .task.
             ScrollView { LazyVStack(alignment: alignment, spacing: 0) { content } }

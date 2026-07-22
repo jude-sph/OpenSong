@@ -45,28 +45,27 @@ struct TitleBar: View {
     }
 }
 
-/// Persistent bottom activity bar.
-struct ActivityBar: View {
+/// Compact activity + library-totals footer at the bottom of the sidebar.
+struct SidebarFooter: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 5) {
             if store.activity.isEmpty {
-                Text("No background activity").font(.system(size: 12)).foregroundStyle(theme.text3)
+                Text("No background activity").font(.system(size: 11)).foregroundStyle(theme.text3)
             } else {
                 ForEach(store.activity) { task in
-                    HStack(spacing: 8) {
-                        Text(task.label).font(.system(size: 12)).foregroundStyle(theme.text2)
-                        ProgressBar(value: task.progress).frame(width: 90)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(task.label).font(.system(size: 11)).foregroundStyle(theme.text2).lineLimit(1)
+                        ProgressBar(value: task.progress).frame(height: 3)
                     }
                 }
             }
-            Spacer()
-            Text(store.libraryTotalsLabel).font(.system(size: 12)).foregroundStyle(theme.text3)
+            Text(store.libraryTotalsLabel).font(.system(size: 11)).foregroundStyle(theme.text3).lineLimit(1)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 46)
-        .background(theme.titlebar)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(theme.sidebar)
     }
 }

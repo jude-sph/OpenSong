@@ -44,9 +44,13 @@ struct RootView: View {
             TitleBar()
             Divider().overlay(theme.sep)
             HStack(spacing: 0) {
-                Sidebar()
-                    .frame(width: 222)
-                    .background(theme.sidebar)
+                VStack(spacing: 0) {
+                    Sidebar().frame(maxHeight: .infinity)
+                    Divider().overlay(theme.sep)
+                    SidebarFooter()
+                }
+                .frame(width: 222)
+                .background(theme.sidebar)
                 Divider().overlay(theme.sep)
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -54,11 +58,8 @@ struct RootView: View {
             }
             Divider().overlay(theme.sep)
             PreviewPlayerBar(model: store.player)
-            Divider().overlay(theme.sep)
-            ActivityBar()
         }
         .background(theme.content)
-        .ignoresSafeArea()   // fill under the window titlebar (custom TitleBar sits at y=0)
         .background(WindowConfigurator())
         .sheet(item: Binding(get: { store.openSheet }, set: { store.openSheet = $0 })) { sheet in
             switch sheet {
