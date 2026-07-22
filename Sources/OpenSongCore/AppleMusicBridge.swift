@@ -13,6 +13,8 @@ public struct AppleMusicBridge: Sendable {
     }
 
     /// JXA: emit the first `playlistLimit` user playlists (with tracks) as JSON.
+    /// Fetches each track property in BULK (one Apple Event per property per playlist)
+    /// instead of per-track — orders of magnitude faster on large libraries.
     private static func script(playlistLimit: Int, tracksPerPlaylist: Int) -> String {
         """
         function run() {
@@ -24,26 +26,60 @@ public struct AppleMusicBridge: Sendable {
           for (let i = 0; i < n; i++) {
             const pl = pls[i];
             let name; try { name = pl.name(); } catch (e) { continue; }
+            let names = [], artists = [], albums = [], durs = [], locs = [], clouds = [];
+            try { names = pl.tracks.name(); } catch (e) {}
+            try { artists = pl.tracks.artist(); } catch (e) {}
+            try { albums = pl.tracks.album(); } catch (e) {}
+            try { durs = pl.tracks.duration(); } catch (e) {}
+            try { locs = pl.tracks.location(); } catch (e) {}
+            try { clouds = pl.tracks.cloudStatus(); } catch (e) {}
             const tracks = [];
-            let ts; try { ts = pl.tracks(); } catch (e) { ts = []; }
-            const m = Math.min(ts.length, \(tracksPerPlaylist));
+            const m = Math.min(names.length, \(tracksPerPlaylist));
             for (let j = 0; j < m; j++) {
-              const t = ts[j];
-              let loc = null, cloud = false;
-              try { const l = t.location(); if (l) loc = Path(l).toString(); } catch (e) {}
-              try { cloud = String(t.cloudStatus()) === 'subscription' || String(t.cloudStatus()) === 'matched'; } catch (e) {}
-              let name2='', artist='', album='', dur=0;
-              try { name2 = t.name(); } catch (e) {}
-              try { artist = t.artist(); } catch (e) {}
-              try { album = t.album(); } catch (e) {}
-              try { dur = t.duration(); } catch (e) {}
-              tracks.push({name: name2, artist: artist, album: album, duration: dur, location: loc, cloud: cloud});
+              let loc = null;
+              try { if (locs[j]) loc = Path(locs[j]).toString(); } catch (e) {}
+              const cs = clouds[j] ? String(clouds[j]) : '';
+              tracks.push({
+                name: names[j] || '', artist: artists[j] || '', album: albums[j] || '',
+                duration: durs[j] || 0, location: loc,
+                cloud: (cs === 'subscription' || cs === 'matched')
+              });
             }
             out.push({name: name, kind: 'playlist', tracks: tracks});
           }
           return JSON.stringify({collections: out});
         }
         """
+    }
+
+    /// Fetch a single playlist's cover artwork, writing the raw image bytes to `path`.
+    /// Uses AppleScript (which can write `raw data` to a file). Returns true on success.
+    public func writePlaylistArtwork(named name: String, to path: String) -> Bool {
+        let escaped = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let escPath = path.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let script = """
+        tell application "Music"
+          try
+            set d to raw data of artwork 1 of playlist "\(escaped)"
+          on error
+            return "no-art"
+          end try
+        end tell
+        try
+          set f to open for access POSIX file "\(escPath)" with write permission
+          set eof f to 0
+          write d to f
+          close access f
+          return "ok"
+        on error
+          try
+            close access POSIX file "\(escPath)"
+          end try
+          return "write-fail"
+        end try
+        """
+        let r = try? Shell.run(osascriptPath, ["-e", script])
+        return (r?.stdoutString.contains("ok") ?? false)
     }
 
     public func playlists(limit: Int = 2000, tracksPerPlaylist: Int = 1000) throws -> [AppleMusicCollection] {

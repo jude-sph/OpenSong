@@ -4,6 +4,15 @@ Running log of feedback from real use, with status. Newest first.
 
 ## 2026-07-22 session
 
+- [x] **Title-bar dead space FIXED** (confirmed from user screenshot — traffic lights,
+  title, toggles on one row). `.ignoresSafeArea()` at the outermost window-content level.
+- [x] **Apple Music load slow / "stuck"** — the JXA fetched each track field one-by-one
+  (~6 Apple Events per track = tens of thousands of round-trips). Now fetches properties in
+  BULK arrays (~6 events per playlist). Plus an explicit loading spinner + message.
+- [x] **Apple Music playlist cover art** — fetch each playlist's artwork (raw data via
+  AppleScript), cache on disk, show in the compare rows (gradient fallback if none).
+
+
 - [x] **New app icon** — using the provided `OpenSong-icon-macos/AppIcon.icns`.
 - [x] **Consistent green** — dark mode used a lighter green; now always the light-mode
   British Racing Green (#12452b) in both themes.

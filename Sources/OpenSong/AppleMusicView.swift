@@ -1,5 +1,36 @@
 import SwiftUI
+import AppKit
 import OpenSongCore
+
+/// A playlist cover fetched from Music.app (raw artwork data via osascript), cached on disk.
+/// Falls back to a gradient when a playlist has no artwork.
+struct AppleMusicArt: View {
+    let name: String
+    var size: CGFloat
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image { Image(nsImage: image).resizable().aspectRatio(contentMode: .fill) }
+            else { Rectangle().fill(placeholderGradient(name)) }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .task(id: name) { await load() }
+    }
+
+    private func load() async {
+        image = nil
+        if renderMode { return }
+        let cache = ArtworkCache.dir().appendingPathComponent("am-\(ArtworkCache.key(name)).img")
+        if !FileManager.default.fileExists(atPath: cache.path) {
+            let ok = await Task.detached { AppleMusicBridge().writePlaylistArtwork(named: name, to: cache.path) }.value
+            if !ok { FileManager.default.createFile(atPath: cache.path, contents: Data()); return }
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: cache.path)[.size] as? Int) ?? 0
+        if (size ?? 0) > 0 { image = NSImage(contentsOf: cache) }
+    }
+}
 
 struct AppleMusicView: View {
     @Environment(AppStore.self) private var store
@@ -13,7 +44,9 @@ struct AppleMusicView: View {
                 }.buttonStyle(SoftButton()).disabled(store.appleMusicLoading)
             }
             Divider().overlay(theme.sep)
-            if store.appleMusic.isEmpty {
+            if store.appleMusicLoading {
+                loadingState
+            } else if store.appleMusic.isEmpty {
                 emptyState
             } else {
                 ScrollOrStack(alignment: .leading) {
@@ -21,7 +54,19 @@ struct AppleMusicView: View {
                 }
             }
         }
-        .onAppear { if store.appleMusic.isEmpty && !renderMode { store.loadAppleMusic() } }
+        .onAppear { if store.appleMusic.isEmpty && !store.appleMusicLoading && !renderMode { store.loadAppleMusic() } }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            ProgressView().controlSize(.large)
+            Text("Loading your Apple Music library…").font(.system(size: 14, weight: .semibold)).foregroundStyle(theme.text)
+            Text("This can take a while the first time for large libraries — reading every playlist's tracks from Music.")
+                .font(.system(size: 12)).foregroundStyle(theme.text3)
+                .multilineTextAlignment(.center).frame(maxWidth: 420)
+            Spacer()
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyState: some View {
@@ -43,7 +88,7 @@ struct AppleMusicView: View {
         let own = store.ownership(col)
         let frac = own.total > 0 ? Double(own.owned) / Double(own.total) : 0
         return HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 6).fill(placeholderGradient(col.name)).frame(width: 46, height: 46)
+            AppleMusicArt(name: col.name, size: 46)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(col.name).font(.system(size: 13, weight: .medium)).foregroundStyle(theme.text).lineLimit(1)
