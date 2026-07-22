@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:#0e0e10}
+  input,button,select,textarea{font-family:inherit}
+  input:focus,button:focus{outline:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+  @keyframes stripe{to{background-position:36px 0}}
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-thumb{background:rgba(128,128,128,.4);border-radius:8px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="min-height:100%;display:flex;align-items:center;justify-content:center;padding:26px;background:var(--desk,#c9c9cd);font-family:-apple-system,'SF Pro Text','SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:var(--text,#1d1d1f);font-size:13px;line-height:1.4;{{ themeVars }}">
+  <div style="width:1180px;height:770px;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:var(--shadow,0 22px 60px rgba(0,0,0,.28));border:1px solid var(--winBorder,rgba(0,0,0,.16));position:relative;background:var(--content,#fff)">
+
+    <!-- TITLE BAR -->
+    <div style="height:44px;flex:0 0 44px;display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--titlebar,#eceaed);border-bottom:1px solid var(--sep,rgba(0,0,0,.09));backdrop-filter:saturate(1.4)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#febc2e;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#28c840;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)"></span>
+      </div>
+      <div style="flex:1;text-align:center;font-weight:600;font-size:13px;color:var(--text,#1d1d1f);letter-spacing:.2px">{{ winTitle }}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;background:var(--chip,rgba(0,0,0,.06));border-radius:7px;padding:2px;font-size:11.5px;font-weight:600">
+          <button onClick="{{ setLight }}" style="border:none;cursor:pointer;padding:3px 10px;border-radius:5px;color:{{ lightFg }};background:{{ lightBg }}">Light</button>
+          <button onClick="{{ setDark }}" style="border:none;cursor:pointer;padding:3px 10px;border-radius:5px;color:{{ darkFg }};background:{{ darkBg }}">Dark</button>
+        </div>
+        <button onClick="{{ openSettings }}" title="Settings" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--text2,#63636a);cursor:pointer;border-radius:6px" style-hover="background:var(--hover,rgba(0,0,0,.05))">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><circle cx="6" cy="4" r="1.7" fill="currentColor" stroke="none"/><line x1="2" y1="8" x2="14" y2="8"/><circle cx="10.5" cy="8" r="1.7" fill="currentColor" stroke="none"/><line x1="2" y1="12" x2="14" y2="12"/><circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- BODY: sidebar + content -->
+    <div style="flex:1;display:flex;min-height:0">
+
+      <!-- SIDEBAR -->
+      <div style="width:222px;flex:0 0 222px;background:var(--sidebar,#e7e6e9);border-right:1px solid var(--sep,rgba(0,0,0,.09));display:flex;flex-direction:column;padding:10px 0;overflow-y:auto">
+        <div style="padding:2px 12px 6px;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text3,#9b9ba2);text-transform:uppercase">Library</div>
+        <sc-for list="{{ libNav }}" as="it" hint-placeholder-count="3">
+          <button onClick="{{ it.go }}" style="display:flex;align-items:center;gap:9px;margin:1px 8px;padding:5px 8px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;text-align:left;background:{{ it.bg }};color:{{ it.fg }}">
+            <span style="width:17px;display:flex;color:{{ it.ic }}">{{ it.icon }}</span>
+            <span style="flex:1">{{ it.label }}</span>
+          </button>
+        </sc-for>
+
+        <div style="padding:14px 12px 6px;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text3,#9b9ba2);text-transform:uppercase">Wishlist</div>
+        <button onClick="{{ goWishlist }}" style="display:flex;align-items:center;gap:9px;margin:1px 8px;padding:5px 8px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;text-align:left;background:{{ wishNav.bg }};color:{{ wishNav.fg }}">
+          <span style="width:17px;display:flex;color:{{ wishNav.ic }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><polygon points="4,2 12,2 12,14 8,10.5 4,14" fill="currentColor" stroke="none"/></svg></span>
+          <span style="flex:1">Pending</span>
+          <span style="font-size:11px;font-weight:600;background:{{ wishNav.badgeBg }};color:{{ wishNav.badgeFg }};border-radius:9px;padding:0 7px;line-height:16px">{{ wishCount }}</span>
+        </button>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 12px 6px">
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text3,#9b9ba2);text-transform:uppercase">Playlists</span>
+        </div>
+        <sc-for list="{{ plNav }}" as="p" hint-placeholder-count="3">
+          <button onClick="{{ p.go }}" style="display:flex;align-items:center;gap:9px;margin:1px 8px;padding:5px 8px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;text-align:left;background:{{ p.bg }};color:{{ p.fg }}">
+            <span style="width:17px;display:flex;color:{{ p.ic }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="6" y1="4" x2="14" y2="4"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="6" y1="12" x2="11" y2="12"/><circle cx="3" cy="4" r="1.1" fill="currentColor" stroke="none"/><circle cx="3" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1.1" fill="currentColor" stroke="none"/></svg></span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.label }}</span>
+            <span style="width:6px;height:6px;border-radius:50%;background:{{ p.dot }}"></span>
+          </button>
+        </sc-for>
+
+        <div style="padding:14px 12px 6px;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text3,#9b9ba2);text-transform:uppercase">Device</div>
+        <button onClick="{{ goDevice }}" style="display:flex;align-items:center;gap:9px;margin:1px 8px;padding:6px 8px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;text-align:left;background:{{ devNav.bg }};color:{{ devNav.fg }}">
+          <span style="width:17px;display:flex;color:{{ devNav.ic }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3.5" y="1.5" width="9" height="13" rx="2"/><rect x="5" y="3" width="6" height="4.5" rx="1"/><circle cx="8" cy="11" r="1.5"/></svg></span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ devNav.label }}</span>
+          <sc-if value="{{ deviceConnected }}" hint-placeholder-val="{{ true }}">
+            <span style="position:relative;width:16px;height:16px;flex:0 0 16px">
+              <svg width="16" height="16" viewBox="0 0 16 16" style="transform:rotate(-90deg)"><circle cx="8" cy="8" r="6" fill="none" stroke="{{ devNav.ringTrack }}" stroke-width="2.4"/><circle cx="8" cy="8" r="6" fill="none" stroke="{{ devNav.ringFg }}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="{{ capDash }}"/></svg>
+            </span>
+          </sc-if>
+        </button>
+
+        <div style="padding:14px 12px 6px;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text3,#9b9ba2);text-transform:uppercase">Apple Music</div>
+        <button onClick="{{ goApple }}" style="display:flex;align-items:center;gap:9px;margin:1px 8px;padding:5px 8px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;text-align:left;background:{{ appNav.bg }};color:{{ appNav.fg }}">
+          <span style="width:17px;display:flex;color:{{ appNav.ic }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/></svg></span>
+          <span style="flex:1">Compare</span>
+        </button>
+        <div style="flex:1"></div>
+      </div>
+
+      <!-- CONTENT -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--content,#fff)">
+
+        <!-- content header -->
+        <div style="flex:0 0 auto;padding:14px 20px 12px;border-bottom:1px solid var(--sep,rgba(0,0,0,.09));background:var(--header,#f7f6f8);display:flex;align-items:center;gap:14px;min-height:60px">
+          <div style="min-width:0">
+            <div style="font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--text,#1d1d1f);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ hdrTitle }}</div>
+            <div style="font-size:12px;color:var(--text2,#63636a);margin-top:1px">{{ hdrSub }}</div>
+          </div>
+          <div style="flex:1"></div>
+          <sc-if value="{{ showViewSwitch }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;background:var(--chip,rgba(0,0,0,.06));border-radius:7px;padding:2px;font-size:12px;font-weight:600">
+              <button onClick="{{ goAllSongs }}" style="border:none;cursor:pointer;padding:4px 12px;border-radius:5px;color:{{ sw.songsFg }};background:{{ sw.songsBg }}">Songs</button>
+              <button onClick="{{ goAlbums }}" style="border:none;cursor:pointer;padding:4px 12px;border-radius:5px;color:{{ sw.albumsFg }};background:{{ sw.albumsBg }}">Albums</button>
+              <button onClick="{{ goArtists }}" style="border:none;cursor:pointer;padding:4px 12px;border-radius:5px;color:{{ sw.artistsFg }};background:{{ sw.artistsBg }}">Artists</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ showSearch }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:6px;background:var(--field,#fff);border:1px solid var(--fieldBorder,rgba(0,0,0,.16));border-radius:7px;padding:4px 9px;width:200px;color:var(--text3,#9b9ba2)">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.3"/><line x1="10.3" y1="10.3" x2="14" y2="14" stroke-linecap="round"/></svg>
+              <input value="{{ search }}" onInput="{{ setSearch }}" placeholder="Search" style="border:none;background:transparent;color:var(--text,#1d1d1f);font-size:13px;width:100%"/>
+            </div>
+          </sc-if>
+          <sc-if value="{{ showAddWish }}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{ addWish }}" style="display:flex;align-items:center;gap:6px;border:1px solid var(--fieldBorder,rgba(0,0,0,.16));background:var(--field,#fff);color:var(--text,#1d1d1f);border-radius:7px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>Custom Item
+            </button>
+          </sc-if>
+        </div>
+
+        <!-- selection action bar -->
+        <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 20px;background:var(--selSoft,rgba(18,69,43,.12));border-bottom:1px solid var(--sep,rgba(0,0,0,.09));font-size:12.5px">
+            <span style="font-weight:600;color:var(--accent,#12452b)">{{ selCount }} selected</span>
+            <div style="width:1px;height:14px;background:var(--sepStrong,rgba(0,0,0,.14))"></div>
+            <button onClick="{{ selAddPl }}" style="border:none;background:transparent;color:var(--text,#1d1d1f);cursor:pointer;font-weight:500;padding:3px 6px;border-radius:5px" style-hover="background:var(--hover,rgba(0,0,0,.05))">Add to Playlist</button>
+            <button onClick="{{ selPin }}" style="border:none;background:transparent;color:var(--text,#1d1d1f);cursor:pointer;font-weight:500;padding:3px 6px;border-radius:5px" style-hover="background:var(--hover,rgba(0,0,0,.05))">Pin to Device</button>
+            <button onClick="{{ selEdit }}" style="border:none;background:transparent;color:var(--text,#1d1d1f);cursor:pointer;font-weight:500;padding:3px 6px;border-radius:5px" style-hover="background:var(--hover,rgba(0,0,0,.05))">Edit Metadata</button>
+            <button onClick="{{ selDelete }}" style="border:none;background:transparent;color:var(--red,#c2331f);cursor:pointer;font-weight:500;padding:3px 6px;border-radius:5px" style-hover="background:var(--hover,rgba(0,0,0,.05))">Delete</button>
+            <div style="flex:1"></div>
+            <button onClick="{{ clearSel }}" style="border:none;background:transparent;color:var(--text2,#63636a);cursor:pointer;font-weight:500;padding:3px 6px;border-radius:5px">Clear</button>
+          </div>
+        </sc-if>
+
+        <!-- SCROLL BODY -->
+        <div style="flex:1;min-height:0;overflow-y:auto;position:relative">
+
+          <!-- ===== ALL SONGS ===== -->
+          <sc-if value="{{ vAllSongs }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="position:sticky;top:0;z-index:2;display:grid;grid-template-columns:20px 34px minmax(0,2.2fr) minmax(0,1.35fr) minmax(0,1.7fr) 54px 104px;gap:0;padding:0 20px;height:30px;align-items:center;background:var(--header,#f7f6f8);border-bottom:1px solid var(--sep,rgba(0,0,0,.09));font-size:11px;font-weight:600;color:var(--text2,#63636a);text-transform:uppercase;letter-spacing:.4px">
+                <div title="On device"></div><div></div><div>Title</div><div>Artist</div><div>Album</div><div style="text-align:right">Time</div><div style="text-align:right">Kind</div>
+              </div>
+              <sc-for list="{{ songRows }}" as="r" hint-placeholder-count="12">
+                <div onClick="{{ r.onClick }}" onDoubleClick="{{ r.onEdit }}" onContextMenu="{{ r.onCtx }}" style="display:grid;grid-template-columns:20px 34px minmax(0,2.2fr) minmax(0,1.35fr) minmax(0,1.7fr) 54px 104px;gap:0;padding:0 20px;height:{{ r.rowH }};align-items:center;cursor:default;font-size:13px;background:{{ r.bg }};color:{{ r.fg }};border-bottom:1px solid var(--stripe,rgba(0,0,0,.02))">
+                  <div style="display:flex"><span style="width:7px;height:7px;border-radius:50%;background:{{ r.dot }};box-shadow:{{ r.dotRing }}"></span></div>
+                  <div><span style="display:block;width:24px;height:24px;border-radius:4px;background:{{ r.art }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)"></span></div>
+                  <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;padding-right:10px">{{ r.title }}</div>
+                  <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{{ r.fg2 }};padding-right:10px">{{ r.artist }}</div>
+                  <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{{ r.fg2 }};padding-right:10px">{{ r.album }}</div>
+                  <div style="text-align:right;color:{{ r.fg2 }};font-variant-numeric:tabular-nums">{{ r.dur }}</div>
+                  <div style="text-align:right;color:{{ r.fg2 }};font-size:11.5px;font-variant-numeric:tabular-nums">{{ r.kind }}</div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ songsEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:80px 20px;text-align:center;color:var(--text3,#9b9ba2)">
+                  <div style="font-size:15px;font-weight:600;color:var(--text2,#63636a)">No songs match "{{ search }}"</div>
+                  <div style="font-size:13px;margin-top:4px">Try a different search or clear the filter.</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <!-- ===== ALBUMS GRID ===== -->
+          <sc-if value="{{ vAlbums }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:22px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(146px,1fr));gap:24px 20px">
+              <sc-for list="{{ albumCards }}" as="a" hint-placeholder-count="8">
+                <div onClick="{{ a.open }}" style="cursor:pointer">
+                  <div style="width:100%;aspect-ratio:1;border-radius:8px;background:{{ a.art }};box-shadow:0 6px 16px rgba(0,0,0,.18),inset 0 0 0 .5px rgba(0,0,0,.2);display:flex;align-items:flex-end;padding:10px;position:relative">
+                    <span style="font-size:15px;font-weight:800;color:rgba(255,255,255,.92);letter-spacing:-.3px;line-height:1.05;text-shadow:0 1px 3px rgba(0,0,0,.35)">{{ a.initials }}</span>
+                    <sc-if value="{{ a.onDev }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.25)"></span></sc-if>
+                  </div>
+                  <div style="margin-top:8px;font-size:13px;font-weight:600;color:var(--text,#1d1d1f);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.name }}</div>
+                  <div style="font-size:11.5px;color:var(--text2,#63636a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.meta }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- ===== ARTISTS ===== -->
+          <sc-if value="{{ vArtists }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:14px 12px">
+              <sc-for list="{{ artistRows }}" as="a" hint-placeholder-count="3">
+                <div onClick="{{ a.open }}" style="display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:10px;cursor:pointer" style-hover="background:var(--hover,rgba(0,0,0,.05))">
+                  <span style="width:52px;height:52px;border-radius:50%;background:{{ a.art }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2)"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:15px;font-weight:600;color:var(--text,#1d1d1f)">{{ a.name }}</div>
+                    <div style="font-size:12.5px;color:var(--text2,#63636a)">{{ a.meta }}</div>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--text3,#9b9ba2)" stroke-width="1.6" stroke-linecap="round"><polyline points="6,3 11,8 6,13"/></svg>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- ===== WISHLIST ===== -->
+          <sc-if value="{{ vWishlist }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="position:sticky;top:0;z-index:2;display:grid;grid-template-columns:118px minmax(0,2fr) minmax(0,1.5fr) 118px 96px;padding:0 20px;height:30px;align-items:center;background:var(--header);border-bottom:1px solid var(--sep);font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">
+                <div>State</div><div>Title</div><div>Artist</div><div>Source</div><div></div>
+              </div>
+              <sc-for list="{{ wishRows }}" as="w" hint-placeholder-count="5">
+                <div style="display:grid;grid-template-columns:118px minmax(0,2fr) minmax(0,1.5fr) 118px 96px;padding:0 20px;height:46px;align-items:center;border-bottom:1px solid var(--stripe)">
+                  <div><span style="display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;background:{{ w.sBg }};color:{{ w.sFg }};border-radius:20px;padding:3px 10px">{{ w.state }}</span></div>
+                  <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px;color:var(--text)">{{ w.title }}</div>
+                  <div style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px">{{ w.artist }}</div>
+                  <div><span style="font-size:11px;font-weight:600;background:{{ w.srcBg }};color:{{ w.srcFg }};border-radius:5px;padding:2px 7px">{{ w.source }}</span></div>
+                  <div style="text-align:right">
+                    <sc-if value="{{ w.matching }}" hint-placeholder-val="{{ false }}"><button onClick="{{ w.open }}" style="border:none;background:var(--accent);color:var(--accentText);font-weight:600;font-size:11.5px;border-radius:6px;padding:5px 11px;cursor:pointer">Review</button></sc-if>
+                    <sc-if value="{{ w.done }}" hint-placeholder-val="{{ false }}"><span style="color:var(--green);display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8.5 6.5,12 13,4.5"/></svg>Verified</span></sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- ===== PLAYLIST DETAIL ===== -->
+          <sc-if value="{{ vPlaylist }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="display:flex;align-items:center;gap:16px;padding:18px 20px;border-bottom:1px solid var(--sep)">
+                <div style="width:74px;height:74px;border-radius:11px;background:linear-gradient(150deg,var(--accent),rgba(0,0,0,.4));box-shadow:0 8px 20px rgba(0,0,0,.22)"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text2)">Playlist</div>
+                  <div style="font-size:23px;font-weight:800;letter-spacing:-.4px;color:var(--text)">{{ plName }}</div>
+                  <div style="font-size:12.5px;color:var(--text2);margin-top:2px">{{ plCount }} songs · {{ plTotal }}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:12.5px;color:var(--text2)">Generate on device (.m3u)</span>
+                  <button onClick="{{ togglePlDev }}" style="width:38px;height:22px;border-radius:12px;border:none;cursor:pointer;background:{{ plDevTrack }};position:relative;padding:0"><span style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transform:{{ plDevKnob }};transition:transform .15s"></span></button>
+                </div>
+              </div>
+              <div style="padding:6px 0">
+                <sc-for list="{{ plTracks }}" as="tk" hint-placeholder-count="6">
+                  <div draggable="true" onDragStart="{{ tk.onDragStart }}" onDragOver="{{ tk.onDragOver }}" onDrop="{{ tk.onDrop }}" style="display:grid;grid-template-columns:24px 30px minmax(0,2.4fr) minmax(0,1.6fr) 54px 32px;padding:0 20px;height:38px;align-items:center;border-bottom:1px solid var(--stripe);cursor:grab" style-hover="background:var(--hover)">
+                    <div style="color:var(--text3);display:flex"><svg width="12" height="12" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="4" y1="5" x2="12" y2="5"/><line x1="4" y1="8" x2="12" y2="8"/><line x1="4" y1="11" x2="12" y2="11"/></svg></div>
+                    <div><span style="display:block;width:24px;height:24px;border-radius:4px;background:{{ tk.art }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)"></span></div>
+                    <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px;color:var(--text)">{{ tk.title }}</div>
+                    <div style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px">{{ tk.artist }}</div>
+                    <div style="text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">{{ tk.dur }}</div>
+                    <div style="text-align:right"><button onClick="{{ tk.remove }}" title="Remove" style="width:22px;height:22px;border:none;background:transparent;color:var(--text3);cursor:pointer;border-radius:5px" style-hover="background:var(--hover)"><svg width="13" height="13" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="4" y1="8" x2="12" y2="8"/></svg></button></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- ===== DEVICE ===== -->
+          <sc-if value="{{ vDevice }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <sc-if value="{{ deviceEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:86px 20px;text-align:center">
+                  <div style="width:78px;height:78px;margin:0 auto 18px;border-radius:16px;border:2px dashed var(--sepStrong);display:flex;align-items:center;justify-content:center;color:var(--text3)"><svg width="32" height="32" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="3.5" y="1.5" width="9" height="13" rx="2"/><rect x="5" y="3" width="6" height="4.5" rx="1"/><circle cx="8" cy="11" r="1.5"/></svg></div>
+                  <div style="font-size:17px;font-weight:700;color:var(--text)">No device connected</div>
+                  <div style="font-size:13px;color:var(--text2);margin:6px auto 0;max-width:360px;line-height:1.5">Plug in your Sony Walkman NW-E394 over USB. OpenSong detects it automatically and shows a sync preview before writing anything.</div>
+                  <button onClick="{{ connectOn }}" style="margin-top:18px;border:none;background:var(--accent);color:var(--accentText);font-weight:600;font-size:13px;border-radius:8px;padding:9px 20px;cursor:pointer">Simulate connect</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ deviceConnected }}" hint-placeholder-val="{{ true }}">
+                <div>
+                  <div style="display:flex;align-items:center;gap:20px;padding:20px;border-bottom:1px solid var(--sep)">
+                    <div style="position:relative;width:82px;height:82px;flex:0 0 82px">
+                      <svg width="82" height="82" viewBox="0 0 82 82" style="transform:rotate(-90deg)"><circle cx="41" cy="41" r="34" fill="none" stroke="var(--track)" stroke-width="8"/><circle cx="41" cy="41" r="34" fill="none" stroke="var(--accent)" stroke-width="8" stroke-linecap="round" stroke-dasharray="{{ capBigDash }}"/></svg>
+                      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:15px;font-weight:800;color:var(--text)">{{ capText }}</span><span style="font-size:10px;color:var(--text3)">of {{ capTotal }}</span></div>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:16px;font-weight:700;color:var(--text)">Sony Walkman NW-E394</div>
+                      <div style="font-size:12.5px;color:var(--text2);margin-top:2px">{{ capFree }} · Target format {{ fmtLabel }}</div>
+                      <div style="display:flex;gap:8px;margin-top:11px">
+                        <button onClick="{{ openSettings }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:12px;border-radius:7px;padding:6px 12px;cursor:pointer">Bitrate & format…</button>
+                        <button onClick="{{ connectOff }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text2);font-weight:600;font-size:12px;border-radius:7px;padding:6px 12px;cursor:pointer">Eject</button>
+                      </div>
+                    </div>
+                    <button onClick="{{ startSync }}" style="border:none;background:var(--accent);color:var(--accentText);font-weight:700;font-size:14px;border-radius:9px;padding:12px 28px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.16)">Sync</button>
+                  </div>
+                  <sc-if value="{{ syncing }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:12px 20px;background:var(--selSoft);border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:12px">
+                      <span style="width:16px;height:16px;border-radius:50%;border:2px solid var(--track);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:0 0 16px"></span>
+                      <div style="flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--text)">Transcoding & copying to Walkman… {{ syncPctText }}</div><div style="height:5px;border-radius:3px;background:var(--track);margin-top:5px;overflow:hidden"><div style="height:100%;width:{{ syncPctW }};background:var(--accent);border-radius:3px"></div></div></div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ syncErr }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:12px 20px;background:rgba(194,51,31,.1);border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:10px;color:var(--red)">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.5"/><line x1="8" y1="4.6" x2="8" y2="9" stroke-linecap="round"/><circle cx="8" cy="11.4" r=".7" fill="currentColor" stroke="none"/></svg>
+                      <div style="font-size:12.5px;font-weight:600">Device unplugged mid-sync — 3 files copied before the connection dropped. Reconnect to resume.</div>
+                    </div>
+                  </sc-if>
+                  <div style="padding:14px 20px">
+                    <div style="display:flex;align-items:center;gap:8px;margin:6px 0 4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></span><span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2)">Will add · {{ addCount }} songs · ~{{ addSizeText }}</span></div>
+                    <sc-for list="{{ willAdd }}" as="d" hint-placeholder-count="4">
+                      <div style="display:grid;grid-template-columns:28px minmax(0,2.4fr) minmax(0,1.6fr) 78px;padding:0 6px;height:34px;align-items:center;border-bottom:1px solid var(--stripe)">
+                        <div><span style="display:block;width:22px;height:22px;border-radius:4px;background:{{ d.art }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)"></span></div>
+                        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px;color:var(--text)">{{ d.title }}</div>
+                        <div style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px">{{ d.artist }}</div>
+                        <div style="text-align:right;color:var(--text2);font-size:11.5px;font-variant-numeric:tabular-nums">{{ d.size }}</div>
+                      </div>
+                    </sc-for>
+                    <div style="display:flex;align-items:center;gap:8px;margin:18px 0 4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--red)"></span><span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2)">Will remove · {{ remCount }} songs</span></div>
+                    <sc-for list="{{ willRemove }}" as="d" hint-placeholder-count="2">
+                      <div style="display:grid;grid-template-columns:28px minmax(0,2.4fr) minmax(0,1.6fr) 78px;padding:0 6px;height:34px;align-items:center;border-bottom:1px solid var(--stripe);opacity:.72">
+                        <div><span style="display:block;width:22px;height:22px;border-radius:4px;background:{{ d.art }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)"></span></div>
+                        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px;color:var(--text);text-decoration:line-through">{{ d.title }}</div>
+                        <div style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px">{{ d.artist }}</div>
+                        <div style="text-align:right;color:var(--red);font-size:11.5px;font-variant-numeric:tabular-nums">−{{ d.size }}</div>
+                      </div>
+                    </sc-for>
+                    <div style="display:flex;align-items:center;gap:8px;margin:18px 0 4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></span><span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2)">Up to date · {{ upCount }} songs</span></div>
+                    <sc-for list="{{ upToDate }}" as="d" hint-placeholder-count="4">
+                      <div style="display:grid;grid-template-columns:28px minmax(0,2.4fr) minmax(0,1.6fr) 78px;padding:0 6px;height:32px;align-items:center;border-bottom:1px solid var(--stripe);opacity:.66">
+                        <div><span style="display:block;width:20px;height:20px;border-radius:4px;background:{{ d.art }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)"></span></div>
+                        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px;color:var(--text2)">{{ d.title }}</div>
+                        <div style="color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px">{{ d.artist }}</div>
+                        <div style="text-align:right;color:var(--text3);font-size:11.5px;font-variant-numeric:tabular-nums">{{ d.size }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <!-- ===== APPLE MUSIC COMPARE ===== -->
+          <sc-if value="{{ vApple }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:6px 0">
+              <sc-for list="{{ appleRows }}" as="a" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--stripe)">
+                  <span style="width:46px;height:46px;border-radius:7px;background:{{ a.art }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2);flex:0 0 46px"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.name }}</span><span style="font-size:10.5px;font-weight:600;color:var(--text2);background:var(--chip);border-radius:5px;padding:1px 6px;flex:0 0 auto">{{ a.kind }}</span></div>
+                    <div style="font-size:12px;color:var(--text2);margin-top:2px">{{ a.sub }}</div>
+                    <div style="height:5px;border-radius:3px;background:var(--track);margin-top:6px;overflow:hidden;max-width:300px"><div style="height:100%;width:{{ a.barW }};background:var(--accent);border-radius:3px"></div></div>
+                  </div>
+                  <sc-if value="{{ a.complete }}" hint-placeholder-val="{{ false }}"><span style="color:var(--green);display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;flex:0 0 auto"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3,8.5 6.5,12 13,4.5"/></svg>Complete</span></sc-if>
+                  <sc-if value="{{ a.miss }}" hint-placeholder-val="{{ true }}"><button onClick="{{ a.mark }}" style="border:none;background:var(--accent);color:var(--accentText);font-weight:600;font-size:12px;border-radius:7px;padding:7px 13px;cursor:pointer;white-space:nowrap;flex:0 0 auto">Mark {{ a.missText }}</button></sc-if>
+                </div>
+              </sc-for>
+              <div style="padding:16px 20px;display:flex;align-items:center;gap:12px;color:var(--text2);font-size:12.5px">
+                <button onClick="{{ importLocal }}" style="border:1px dashed var(--sepStrong);background:transparent;color:var(--text);font-weight:600;font-size:12.5px;border-radius:8px;padding:9px 15px;cursor:pointer;flex:0 0 auto">Import local file…</button>
+                <span style="line-height:1.4">For tracks Apple Music already stores as non-DRM files on disk.</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- ===== MATCH REVIEW ===== -->
+          <sc-if value="{{ vMatch }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="padding:12px 20px;border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:12px">
+                <button onClick="{{ backWish }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="10,3 5,8 10,13"/></svg>Wishlist</button>
+                <div style="font-size:13px;color:var(--text2)">Finding a source for <b style="color:var(--text)">{{ mwTitle }}</b> — {{ mwArtist }}</div>
+              </div>
+
+              <sc-if value="{{ matchLoading }}" hint-placeholder-val="{{ true }}">
+                <div style="padding:70px 20px;text-align:center">
+                  <span style="display:inline-block;width:30px;height:30px;border-radius:50%;border:3px solid var(--track);border-top-color:var(--accent);animation:spin .8s linear infinite"></span>
+                  <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:16px">Searching YouTube via yt-dlp…</div>
+                  <div style="font-size:12.5px;color:var(--text2);margin-top:4px">Ranking candidates by title, channel and duration match.</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ matchError }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:56px 20px;text-align:center;max-width:440px;margin:0 auto">
+                  <div style="width:60px;height:60px;margin:0 auto 16px;border-radius:14px;background:rgba(194,51,31,.12);display:flex;align-items:center;justify-content:center;color:var(--red)"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.3"/><line x1="5.6" y1="5.6" x2="10.4" y2="10.4" stroke-linecap="round"/></svg></div>
+                  <div style="font-size:16px;font-weight:700;color:var(--text)">No confident matches found</div>
+                  <div style="font-size:13px;color:var(--text2);margin-top:6px;line-height:1.5">yt-dlp returned results but none passed the duration and title check. Paste a URL you trust, or retry the search.</div>
+                  <div style="display:flex;gap:8px;margin-top:16px">
+                    <input placeholder="Paste a YouTube URL…" style="flex:1;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px"/>
+                    <button onClick="{{ retryMatch }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:13px;border-radius:8px;padding:9px 16px;cursor:pointer">Retry search</button>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ matchResults }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:0;align-items:stretch">
+                  <div style="flex:1;min-width:0;padding:16px 18px;border-right:1px solid var(--sep)">
+                    <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:10px">Candidates</div>
+                    <sc-for list="{{ candRows }}" as="c" hint-placeholder-count="3">
+                      <div onClick="{{ c.pick }}" style="display:flex;gap:12px;align-items:center;padding:11px;border-radius:10px;border:{{ c.ring }};background:{{ c.bg }};cursor:pointer;margin-bottom:10px">
+                        <span style="width:15px;height:15px;border-radius:50%;background:{{ c.dotBg }};box-shadow:{{ c.dotRing }};flex:0 0 15px"></span>
+                        <span style="width:92px;height:52px;border-radius:6px;background:repeating-linear-gradient(48deg,#3a3a40,#3a3a40 5px,#2f2f34 5px,#2f2f34 10px);flex:0 0 92px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">{{ c.title }}</div>
+                          <div style="font-size:11.5px;color:var(--text2);margin-top:3px">{{ c.channel }} · {{ c.views }}</div>
+                          <div style="display:flex;gap:12px;margin-top:4px;font-size:11px"><span style="color:{{ c.confColor }};font-weight:700">{{ c.conf }}</span><span style="color:{{ c.matchColor }}">{{ c.matchText }}</span></div>
+                        </div>
+                        <div style="text-align:right;color:var(--text2);font-size:12px;font-variant-numeric:tabular-nums;flex:0 0 auto">{{ c.dur }}</div>
+                      </div>
+                    </sc-for>
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                      <input placeholder="…or paste a custom YouTube URL" style="flex:1;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:8px;padding:8px 11px;font-size:12.5px"/>
+                    </div>
+                  </div>
+                  <div style="width:320px;flex:0 0 320px;padding:16px 18px">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><span style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2)">Metadata</span><span style="font-size:10px;font-weight:600;color:var(--accent);background:var(--selSoft);border-radius:5px;padding:1px 6px">Auto-cleaned</span></div>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Title</label>
+                    <input value="{{ mm.title }}" onInput="{{ mmSet.title }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:9px"/>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Artist</label>
+                    <input value="{{ mm.artist }}" onInput="{{ mmSet.artist }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:9px"/>
+                    <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Album</label>
+                    <input value="{{ mm.album }}" onInput="{{ mmSet.album }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:9px"/>
+                    <div style="display:flex;gap:9px">
+                      <div style="flex:1"><label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Track</label><input value="{{ mm.track }}" onInput="{{ mmSet.track }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px"/></div>
+                      <div style="flex:1"><label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Year</label><input value="{{ mm.year }}" onInput="{{ mmSet.year }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px"/></div>
+                    </div>
+                    <button onClick="{{ runDownload }}" style="width:100%;margin-top:16px;border:none;background:var(--accent);color:var(--accentText);font-weight:700;font-size:14px;border-radius:9px;padding:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2" x2="8" y2="10.5"/><polyline points="4.5,7 8,10.5 11.5,7"/><line x1="3" y1="13.5" x2="13" y2="13.5"/></svg>Download & tag</button>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ matchDownloading }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:64px 40px;text-align:center;max-width:420px;margin:0 auto">
+                  <div style="font-size:15px;font-weight:700;color:var(--text)">Downloading & transcoding</div>
+                  <div style="font-size:12.5px;color:var(--text2);margin-top:4px">yt-dlp → ffmpeg → tagging → fingerprint verify</div>
+                  <div style="height:8px;border-radius:5px;background:var(--track);margin-top:20px;overflow:hidden"><div style="height:100%;width:{{ dlPctW }};background:var(--accent);border-radius:5px;transition:width .2s"></div></div>
+                  <div style="font-size:12px;color:var(--text2);margin-top:8px;font-variant-numeric:tabular-nums">{{ dlPctText }}</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ matchDone }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:60px 40px;text-align:center;max-width:420px;margin:0 auto">
+                  <div style="width:64px;height:64px;margin:0 auto 16px;border-radius:16px;background:var(--selSoft);display:flex;align-items:center;justify-content:center;color:var(--accent)"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8.5 6.5,12 13,4.5"/></svg></div>
+                  <div style="font-size:16px;font-weight:700;color:var(--text)">Downloaded & verified</div>
+                  <div style="font-size:13px;color:var(--text2);margin-top:6px;line-height:1.5">Saved to your master library as FLAC, tags written, fingerprint matched at 98%.</div>
+                  <div style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;background:var(--selSoft);color:var(--accent);font-weight:600;font-size:12px;border-radius:20px;padding:5px 12px">Quality verified · 98% match</div>
+                  <div style="margin-top:20px"><button onClick="{{ backWish }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:13px;border-radius:8px;padding:9px 18px;cursor:pointer">Back to Wishlist</button></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVITY BAR -->
+    <div style="flex:0 0 46px;height:46px;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--titlebar,#eceaed);border-top:1px solid var(--sep,rgba(0,0,0,.09))">
+      <sc-if value="{{ hasActivity }}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="2">
+          <div style="display:flex;align-items:center;gap:9px;min-width:0;max-width:340px">
+            <sc-if value="{{ t.spin }}" hint-placeholder-val="{{ true }}"><span style="width:14px;height:14px;border-radius:50%;border:2px solid var(--track,rgba(0,0,0,.1));border-top-color:var(--accent,#12452b);animation:spin .8s linear infinite;flex:0 0 14px"></span></sc-if>
+            <div style="min-width:0">
+              <div style="font-size:11.5px;font-weight:600;color:var(--text,#1d1d1f);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.label }}</div>
+              <div style="width:180px;height:4px;border-radius:2px;background:var(--track,rgba(0,0,0,.1));margin-top:3px;overflow:hidden"><div style="height:100%;width:{{ t.pct }};background:var(--accent,#12452b);border-radius:2px"></div></div>
+            </div>
+            <button onClick="{{ t.cancel }}" title="Cancel" style="width:18px;height:18px;border:none;background:transparent;color:var(--text3,#9b9ba2);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px"><svg width="10" height="10" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
+          </div>
+        </sc-for>
+      </sc-if>
+      <sc-if value="{{ idle }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:12px;color:var(--text3,#9b9ba2)">No background activity</div>
+      </sc-if>
+      <div style="flex:1"></div>
+      <div style="font-size:11.5px;color:var(--text2,#63636a);font-variant-numeric:tabular-nums">{{ libStat }}</div>
+    </div>
+
+    <!-- CONTEXT MENU -->
+    <sc-if value="{{ menu }}" hint-placeholder-val="{{ false }}">
+      <div style="position:fixed;left:{{ menuX }};top:{{ menuY }};z-index:60;min-width:200px;background:var(--sheet);border:1px solid var(--sepStrong);border-radius:9px;box-shadow:0 14px 40px rgba(0,0,0,.3);padding:5px;font-size:13px">
+        <button onClick="{{ mPlay }}" style="display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer" style-hover="background:var(--accent);color:var(--accentText)">Play</button>
+        <button onClick="{{ mAdd }}" style="display:flex;justify-content:space-between;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer" style-hover="background:var(--accent);color:var(--accentText)"><span>Add to Playlist</span><span style="opacity:.5">›</span></button>
+        <button onClick="{{ mPin }}" style="display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer" style-hover="background:var(--accent);color:var(--accentText)">Pin to Device</button>
+        <button onClick="{{ mEdit }}" style="display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer" style-hover="background:var(--accent);color:var(--accentText)">Edit Metadata…</button>
+        <div style="height:1px;background:var(--sep);margin:5px 6px"></div>
+        <button onClick="{{ mReveal }}" style="display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer" style-hover="background:var(--accent);color:var(--accentText)">Reveal in Finder</button>
+        <button onClick="{{ mDelete }}" style="display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--red);padding:6px 10px;border-radius:6px;cursor:pointer" style-hover="background:var(--red);color:#fff">Delete from Library</button>
+      </div>
+    </sc-if>
+
+    <!-- METADATA EDITOR SHEET -->
+    <sc-if value="{{ showMeta }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:50;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding-top:64px">
+        <div style="width:520px;max-width:calc(100% - 40px);background:var(--sheet);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.4);overflow:hidden">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--sep);font-size:15px;font-weight:700;color:var(--text)">Song Info</div>
+          <div style="padding:20px;display:flex;gap:18px">
+            <div style="flex:0 0 120px">
+              <div style="width:120px;height:120px;border-radius:9px;background:{{ mdArt }};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2),0 6px 16px rgba(0,0,0,.18);display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px"><span style="font-size:10.5px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.35);border-radius:5px;padding:2px 8px;cursor:pointer">Replace artwork</span></div>
+            </div>
+            <div style="flex:1;min-width:0">
+              <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Title</label>
+              <input value="{{ md.title }}" onInput="{{ mdSet.title }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:9px"/>
+              <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Artist</label>
+              <input value="{{ md.artist }}" onInput="{{ mdSet.artist }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:9px"/>
+              <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Album</label>
+              <input value="{{ md.album }}" onInput="{{ mdSet.album }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:9px"/>
+              <div style="display:flex;gap:9px">
+                <div style="flex:1"><label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Track #</label><input value="{{ md.track }}" onInput="{{ mdSet.track }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px"/></div>
+                <div style="flex:1.4"><label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Genre</label><input value="{{ md.genre }}" onInput="{{ mdSet.genre }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px"/></div>
+                <div style="flex:1"><label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Year</label><input value="{{ md.year }}" onInput="{{ mdSet.year }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px"/></div>
+              </div>
+            </div>
+          </div>
+          <div style="margin:0 20px;padding:12px 14px;background:var(--header);border-radius:9px;font-size:11.5px;color:var(--text2);line-height:1.7">
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Format</span><span style="color:var(--text);font-weight:600">{{ mdKind }}</span></div>
+            <div style="display:flex;justify-content:space-between"><span style="color:var(--text3)">Size</span><span style="color:var(--text);font-weight:600">{{ mdSize }}</span></div>
+            <div style="display:flex;justify-content:space-between;gap:16px"><span style="color:var(--text3);flex:0 0 auto">Path</span><span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:right">{{ mdPath }}</span></div>
+          </div>
+          <div style="padding:16px 20px;display:flex;justify-content:flex-end;gap:9px">
+            <button onClick="{{ closeSheet }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:13px;border-radius:8px;padding:8px 16px;cursor:pointer">Cancel</button>
+            <button onClick="{{ saveMeta }}" style="border:none;background:var(--accent);color:var(--accentText);font-weight:700;font-size:13px;border-radius:8px;padding:8px 16px;cursor:pointer">Save to file tags</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- SETTINGS SHEET -->
+    <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:50;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding-top:52px">
+        <div style="width:600px;max-width:calc(100% - 40px);max-height:calc(100% - 90px);overflow-y:auto;background:var(--sheet);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.4)">
+          <div style="padding:16px 22px;border-bottom:1px solid var(--sep);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--sheet);z-index:1">
+            <span style="font-size:16px;font-weight:700;color:var(--text)">Settings</span>
+            <button onClick="{{ closeSheet }}" style="width:26px;height:26px;border:none;background:var(--chip);color:var(--text2);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
+          </div>
+          <div style="padding:20px 22px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px">Master Library</div>
+            <div style="display:flex;gap:9px;align-items:center;margin-bottom:20px">
+              <input value="{{ S.path }}" onInput="{{ setPath }}" style="flex:1;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:8px 11px;font-size:13px;font-family:ui-monospace,Menlo,monospace"/>
+              <button onClick="{{ openOnboard }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:12.5px;border-radius:7px;padding:8px 13px;cursor:pointer;white-space:nowrap">Choose…</button>
+            </div>
+
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px">Device Format</div>
+            <div style="display:flex;gap:14px;margin-bottom:12px">
+              <div style="flex:1"><label style="display:block;font-size:11.5px;color:var(--text2);margin:0 0 4px">Target format</label><select value="{{ S.fmt }}" onChange="{{ setFmt }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px"><option>MP3</option><option>AAC</option><option>Opus</option></select></div>
+              <div style="flex:1"><label style="display:block;font-size:11.5px;color:var(--text2);margin:0 0 4px">Bitrate</label><select value="{{ S.kbps }}" onChange="{{ setKbps }}" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px"><option>128</option><option>192</option><option>256</option><option>320</option></select></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid var(--sep);margin-bottom:8px">
+              <div><div style="font-size:13px;font-weight:600;color:var(--text)">Loudness normalization</div><div style="font-size:11.5px;color:var(--text2)">Apply ReplayGain on transcode for even volume</div></div>
+              <button onClick="{{ toggleLoud }}" style="width:38px;height:22px;border-radius:12px;border:none;cursor:pointer;background:{{ loudTrack }};position:relative;padding:0;flex:0 0 38px"><span style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transform:{{ loudKnob }};transition:transform .15s"></span></button>
+            </div>
+
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:16px 0 8px">Tool Paths</div>
+            <div style="display:flex;gap:9px;align-items:center;margin-bottom:8px"><span style="width:56px;font-size:12.5px;color:var(--text2)">yt-dlp</span><input value="/opt/homebrew/bin/yt-dlp" style="flex:1;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace"/></div>
+            <div style="display:flex;gap:9px;align-items:center;margin-bottom:20px"><span style="width:56px;font-size:12.5px;color:var(--text2)">ffmpeg</span><input value="/opt/homebrew/bin/ffmpeg" style="flex:1;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace"/></div>
+
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:4px">Smart Features</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid var(--sep)">
+              <div><div style="font-size:13px;font-weight:600;color:var(--text)">AI metadata cleanup</div><div style="font-size:11.5px;color:var(--text2)">Normalize titles, artists and casing on import</div></div>
+              <button onClick="{{ toggleAi }}" style="width:38px;height:22px;border-radius:12px;border:none;cursor:pointer;background:{{ aiTrack }};position:relative;padding:0;flex:0 0 38px"><span style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transform:{{ aiKnob }};transition:transform .15s"></span></button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid var(--sep)">
+              <div><div style="font-size:13px;font-weight:600;color:var(--text)">Fingerprint match verification</div><div style="font-size:11.5px;color:var(--text2)">Confirm downloads against AcoustID</div></div>
+              <button onClick="{{ toggleFp }}" style="width:38px;height:22px;border-radius:12px;border:none;cursor:pointer;background:{{ fpTrack }};position:relative;padding:0;flex:0 0 38px"><span style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transform:{{ fpKnob }};transition:transform .15s"></span></button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid var(--sep)">
+              <div><div style="font-size:13px;font-weight:600;color:var(--text)">Audio quality checking</div><div style="font-size:11.5px;color:var(--text2)">Flag upscaled or clipped source files</div></div>
+              <button onClick="{{ toggleQ }}" style="width:38px;height:22px;border-radius:12px;border:none;cursor:pointer;background:{{ qTrack }};position:relative;padding:0;flex:0 0 38px"><span style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transform:{{ qKnob }};transition:transform .15s"></span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ONBOARDING -->
+    <sc-if value="{{ showOnboard }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:55;background:var(--content);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center">
+        <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(150deg,var(--accent),rgba(0,0,0,.4));display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:18px;box-shadow:0 10px 26px rgba(0,0,0,.25)"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="5" cy="12" r="2"/><line x1="7" y1="12" x2="7" y2="3" stroke-linecap="round"/><line x1="7" y1="3" x2="13" y2="4.6" stroke-linecap="round"/><circle cx="11" cy="11.2" r="2"/><line x1="13" y1="11.2" x2="13" y2="4.6" stroke-linecap="round"/></svg></div>
+        <div style="font-size:26px;font-weight:800;letter-spacing:-.6px;color:var(--text)">Welcome to OpenSong</div>
+        <div style="font-size:14px;color:var(--text2);margin-top:8px;max-width:460px;line-height:1.55">Your Mac holds the high-quality master files — the source of truth. Your Walkman is just a sync target that receives bitrate-reduced copies.</div>
+        <div style="width:460px;max-width:100%;margin-top:26px;border:1px solid var(--sepStrong);border-radius:12px;padding:18px;text-align:left;background:var(--header)">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:4px">Choose your master library folder</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px">OpenSong will index every track here and never move your originals.</div>
+          <div style="display:flex;gap:9px;align-items:center">
+            <div style="flex:1;border:1px solid var(--fieldBorder);background:var(--field);border-radius:7px;padding:9px 11px;font-size:12.5px;color:var(--text);font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">~/Music/OpenSong Library</div>
+            <button style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:12.5px;border-radius:7px;padding:9px 14px;cursor:pointer;white-space:nowrap">Choose…</button>
+          </div>
+        </div>
+        <div style="width:460px;max-width:100%;margin-top:12px;border:1px dashed var(--sepStrong);border-radius:12px;padding:14px 18px;text-align:left;display:flex;align-items:center;gap:12px">
+          <div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:var(--text)">Connect Apple Music <span style="font-weight:500;color:var(--text3)">· optional</span></div><div style="font-size:12px;color:var(--text2);margin-top:2px">Compare your library and pull missing tracks into the wishlist. You can do this later.</div></div>
+          <button style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:12px;border-radius:7px;padding:7px 12px;cursor:pointer;white-space:nowrap;flex:0 0 auto">Grant access</button>
+        </div>
+        <button onClick="{{ closeSheet }}" style="margin-top:26px;border:none;background:var(--accent);color:var(--accentText);font-weight:700;font-size:14px;border-radius:9px;padding:11px 40px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.16)">Get Started</button>
+      </div>
+    </sc-if>
+
+    <!-- ADD CUSTOM WISHLIST ITEM -->
+    <sc-if value="{{ showAddwish }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:50;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding-top:90px">
+        <div style="width:420px;max-width:calc(100% - 40px);background:var(--sheet);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.4);padding:20px">
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px">Add to Wishlist</div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Title</label>
+          <input value="{{ nw.title }}" onInput="{{ setNwTitle }}" placeholder="Song or album title" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:8px 11px;font-size:13px;margin-bottom:10px"/>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin:0 0 3px">Artist</label>
+          <input value="{{ nw.artist }}" onInput="{{ setNwArtist }}" placeholder="Artist" style="width:100%;border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);border-radius:7px;padding:8px 11px;font-size:13px;margin-bottom:18px"/>
+          <div style="display:flex;justify-content:flex-end;gap:9px">
+            <button onClick="{{ closeSheet }}" style="border:1px solid var(--fieldBorder);background:var(--field);color:var(--text);font-weight:600;font-size:13px;border-radius:8px;padding:8px 16px;cursor:pointer">Cancel</button>
+            <button onClick="{{ addWishSave }}" style="border:none;background:var(--accent);color:var(--accentText);font-weight:700;font-size:13px;border-radius:8px;padding:8px 16px;cursor:pointer">Add</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1232,&quot;height&quot;:822},&quot;defaultAppearance&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Light&quot;,&quot;Dark&quot;],&quot;default&quot;:&quot;Light&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;startConnected&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;compactRows&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Appearance&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.state = {
+      dark:(props&&props.defaultAppearance)==='Dark', view:'allSongs', activePlaylist:'p1', filterAlbum:null,
+      selected:[], search:'', sheet:null,
+      matchId:null, matchStep:'results',
+      deviceConnected:!(props&&props.startConnected===false), syncing:false, syncErr:false,
+      menu:null, sort:'album', metaDraft:null,
+      settings:{fmt:'MP3',kbps:'192',loud:true,ai:true,fp:true,q:false,path:'~/Music/OpenSong Library'},
+      wishState:{}, dragIdx:null,
+      matchMeta:{title:'Real Friends',artist:'Kanye West',album:'The Life of Pablo',track:'8',year:'2016',genre:'Hip-Hop / Rap'},
+      nw:{artist:'',title:''}
+    };
+    this._make();
+  }
+  _sec(t){const[m,s]=t.split(':').map(Number);return m*60+s;}
+  _fmtDur(sec){const m=Math.floor(sec/60),s=sec%60;return m+':'+String(s).padStart(2,'0');}
+  _fmtLong(sec){const h=Math.floor(sec/3600),m=Math.round((sec%3600)/60);return h?h+' hr '+m+' min':m+' min';}
+  _make(){
+    const ALB=[
+      {n:'The College Dropout',y:2004,h:28,tr:[['Intro','0:19'],['We Don\'t Care','3:59'],['Jesus Walks','3:13'],['All Falls Down','3:43'],['Slow Jamz','5:16'],['Family Business','4:38']]},
+      {n:'Late Registration',y:2005,h:6,tr:[['Heard \'Em Say','3:23'],['Touch the Sky','3:57'],['Gold Digger','3:28'],['Roses','4:05'],['Hey Mama','5:04']]},
+      {n:'Graduation',y:2007,h:192,dev:true,tr:[['Good Morning','3:15'],['Stronger','5:11'],['Champion','2:47'],['Flashing Lights','3:57'],['Good Life','3:27'],['Can\'t Tell Me Nothing','4:31'],['Homecoming','3:23']]},
+      {n:'808s & Heartbreak',y:2008,h:210,dev:true,tr:[['Say You Will','6:17'],['Heartless','3:31'],['Amazing','3:58'],['Love Lockdown','4:30'],['Paranoid','4:37'],['Coldest Winter','2:44']]},
+      {n:'My Beautiful Dark Twisted Fantasy',y:2010,h:352,dev:true,tr:[['Dark Fantasy','4:40'],['Power','4:52'],['All of the Lights','4:59'],['Monster','6:18'],['Devil in a New Dress','5:52'],['Runaway','9:08'],['Lost in the World','4:16']]},
+      {n:'Yeezus',y:2013,h:0,s:0,tr:[['On Sight','2:36'],['Black Skinhead','3:08'],['I Am a God','3:51'],['New Slaves','4:16'],['Blood on the Leaves','6:00'],['Bound 2','3:49']]},
+      {n:'The Life of Pablo',y:2016,h:24,tr:[['Ultralight Beam','5:20'],['Famous','3:16'],['Feedback','2:28'],['Waves','3:01'],['FML','3:59'],['Fade','3:14']]},
+      {n:'ye',y:2018,h:150,tr:[['I Thought About Killing You','4:33'],['Yikes','3:04'],['All Mine','2:25'],['Ghost Town','4:36'],['Violent Crimes','3:41']]},
+      {n:'Jesus Is King',y:2019,h:48,tr:[['Selah','2:40'],['Follow God','1:44'],['Closed on Sunday','2:44'],['On God','2:57'],['Use This Gospel','4:39']]},
+      {n:'Donda',y:2021,h:0,s:0,tr:[['Jail','4:53'],['Off the Grid','5:38'],['Hurricane','4:06'],['Praise God','4:36'],['Moon','2:23'],['Believe What I Say','4:56']]},
+      {n:'Kids See Ghosts',artist:'KIDS SEE GHOSTS',y:2018,h:280,tr:[['Feel the Love','2:29'],['Fire','2:23'],['4th Dimension','2:41'],['Freeee','2:59'],['Reborn','5:24'],['Kids See Ghosts','4:11']]}
+    ];
+    const fmts=['FLAC','ALAC','MP3'], kb={FLAC:1411,ALAC:1005,MP3:320};
+    const songs=[], albums=[];
+    ALB.forEach((a,ai)=>{
+      const artist=a.artist||'Kanye West', sat=a.s==null?54:a.s;
+      const art=`repeating-linear-gradient(48deg, hsl(${a.h} ${sat}% 42%), hsl(${a.h} ${sat}% 42%) 5px, hsl(${a.h} ${sat}% 37%) 5px, hsl(${a.h} ${sat}% 37%) 10px)`;
+      const artStrong=`linear-gradient(150deg, hsl(${a.h} ${sat}% 52%), hsl(${(a.h+24)%360} ${sat}% 34%))`;
+      albums.push({id:'al'+ai,name:a.n,artist,year:a.y,art:artStrong,swatch:art,onDev:!!a.dev,count:a.tr.length,initials:this._ini(a.n)});
+      a.tr.forEach((tk,ti)=>{
+        const fmt=fmts[ai%3], kbps=kb[fmt], sec=this._sec(tk[1]);
+        songs.push({id:'al'+ai+'_'+ti,title:tk[0],artist,album:a.n,albumId:'al'+ai,dur:tk[1],sec,fmt,kbps,
+          kind:fmt==='MP3'?'MP3 320':fmt+' '+kbps,onDev:!!a.dev,track:ti+1,year:a.y,genre:'Hip-Hop / Rap',
+          hue:a.h,sat,art:artStrong,swatch:art,mb:Math.round(sec*kbps/8/1024*10)/10,mb192:Math.round(sec*192/8/1024*10)/10,
+          path:'~/Music/OpenSong Library/'+artist+'/'+a.n+'/'+String(ti+1).padStart(2,'0')+' '+tk[0]+'.'+fmt.toLowerCase(),
+          bytes:Math.round(sec*kbps/8*1000)});
+      });
+    });
+    this._songs=songs; this._albums=albums;
+    this._playlists=[
+      {id:'p1',name:'Late Night Drive',onDev:true,ids:['al3_3','al4_5','al7_3','al6_0','al3_1','al4_2','al9_4']},
+      {id:'p2',name:'Gym / Hype',onDev:true,ids:['al4_1','al2_1','al0_2','al5_1','al9_1','al2_3']},
+      {id:'p3',name:'Sunday Gospel',onDev:false,ids:['al8_0','al8_4','al6_0','al9_2','al8_1']}
+    ];
+    this._wish=[
+      {id:'w1',artist:'¥$ (Ye & Ty Dolla $ign)',title:'Vultures 1',source:'Apple Music',state:'Wishlist'},
+      {id:'w2',artist:'Kanye West',title:'Real Friends',source:'Custom',state:'Matching'},
+      {id:'w3',artist:'Kanye West',title:'30 Hours',source:'Apple Music',state:'Matching',noMatch:true},
+      {id:'w4',artist:'Kanye West',title:'No More Parties in LA',source:'Apple Music',state:'Downloaded'},
+      {id:'w5',artist:'KIDS SEE GHOSTS',title:'Cudi Montage',source:'Custom',state:'Wishlist'}
+    ];
+    this._cands=[
+      {id:'c1',title:'Kanye West - Real Friends (Official Audio)',channel:'Kanye West',dur:'4:16',views:'42M',conf:'High',pct:96,match:true},
+      {id:'c2',title:'Real Friends - Kanye West (Lyrics)',channel:'TrapMusicHDTV',dur:'4:18',views:'8.1M',conf:'Medium',pct:74,match:true},
+      {id:'c3',title:'Kanye West - Real Friends (Live on SNL)',channel:'Saturday Night Live',dur:'5:02',views:'2.3M',conf:'Low',pct:38,match:false}
+    ];
+    this._apple=[
+      {id:'a1',name:'Kanye Essentials',kind:'Playlist',total:50,owned:41,h:150},
+      {id:'a2',name:'2010s Hip-Hop',kind:'Playlist',total:100,owned:23,h:210},
+      {id:'a3',name:'Vultures 2',kind:'Album',artist:'¥$',total:16,owned:0,h:0,s:0},
+      {id:'a4',name:'The College Dropout',kind:'Album',artist:'Kanye West',total:21,owned:6,h:28},
+      {id:'a5',name:'Discover Weekly',kind:'Playlist',total:30,owned:9,h:280}
+    ];
+    this._cand='c1'; this._cancelled={};
+    this.state.metaSel='c1';
+  }
+  _ini(n){const w=n.replace(/[^A-Za-z0-9 &]/g,'').split(' ').filter(Boolean);return (w[0]||'').slice(0,1).toUpperCase()+(w[1]?w[1].slice(0,1).toUpperCase():(w[0]||'').slice(1,2).toUpperCase());}
+  byId(id){return this._songs.find(s=>s.id===id);}
+
+  // ---- theme ----
+  theme(){
+    const L={desk:'#c9c9cd',content:'#ffffff',sidebar:'#e8e7ea',titlebar:'#edecef',header:'#f7f6f8',text:'#1d1d1f',text2:'#65656c',text3:'#9b9ba2',sep:'rgba(0,0,0,.09)',sepStrong:'rgba(0,0,0,.14)',accent:'#12452b',accentText:'#ffffff',sel:'#12452b',selText:'#ffffff',selSoft:'rgba(18,69,43,.11)',hover:'rgba(0,0,0,.05)',stripe:'rgba(0,0,0,.02)',field:'#ffffff',fieldBorder:'rgba(0,0,0,.16)',chip:'rgba(0,0,0,.06)',track:'rgba(0,0,0,.10)',winBorder:'rgba(0,0,0,.14)',shadow:'0 24px 64px rgba(0,0,0,.30),0 2px 8px rgba(0,0,0,.14)',amber:'#a8680a',red:'#c2331f',green:'#1f7a45',sheet:'#ffffff',scrim:'rgba(0,0,0,.32)'};
+    const D={desk:'#0d0d0f',content:'#1c1c1f',sidebar:'#201f24',titlebar:'#2a2830',header:'#242327',text:'#f2f2f5',text2:'#a0a0a8',text3:'#6f6f77',sep:'rgba(255,255,255,.09)',sepStrong:'rgba(255,255,255,.16)',accent:'#46a374',accentText:'#08160f',sel:'#2c6a48',selText:'#eafff2',selSoft:'rgba(70,163,116,.16)',hover:'rgba(255,255,255,.06)',stripe:'rgba(255,255,255,.025)',field:'#2c2c31',fieldBorder:'rgba(255,255,255,.18)',chip:'rgba(255,255,255,.09)',track:'rgba(255,255,255,.14)',winBorder:'rgba(255,255,255,.08)',shadow:'0 28px 74px rgba(0,0,0,.62),0 2px 10px rgba(0,0,0,.5)',amber:'#e0a63a',red:'#ff6a5a',green:'#54c98a',sheet:'#26262b',scrim:'rgba(0,0,0,.5)'};
+    return this.state.dark?D:L;
+  }
+
+  // ---- helpers ----
+  navItem(active,label){const t=this.theme();return{bg:active?'var(--sel)':'transparent',fg:active?'var(--selText)':'var(--text)',ic:active?'var(--selText)':'var(--text2)',label};}
+  select(id,e){
+    const meta=e&&(e.metaKey||e.ctrlKey), shift=e&&e.shiftKey;
+    let sel=this.state.selected.slice();
+    const vis=this._visibleSongs().map(s=>s.id);
+    if(shift&&sel.length){const last=sel[sel.length-1];const i1=vis.indexOf(last),i2=vis.indexOf(id);if(i1>-1&&i2>-1){const[a,b]=[i1,i2].sort((x,y)=>x-y);sel=vis.slice(a,b+1);}}
+    else if(meta){sel.includes(id)?sel=sel.filter(x=>x!==id):sel.push(id);}
+    else sel=[id];
+    this.setState({selected:sel,menu:null});
+  }
+  _visibleSongs(){
+    let s=this._songs.slice();
+    if(this.state.filterAlbum)s=s.filter(x=>x.albumId===this.state.filterAlbum);
+    const q=this.state.search.trim().toLowerCase();
+    if(q)s=s.filter(x=>(x.title+' '+x.artist+' '+x.album).toLowerCase().includes(q));
+    const k=this.state.sort;
+    s.sort((a,b)=> k==='title'?a.title.localeCompare(b.title): k==='artist'?a.artist.localeCompare(b.artist): (a.albumId.localeCompare(b.albumId)||a.track-b.track));
+    return s;
+  }
+  go(view,extra){this.setState(Object.assign({view,menu:null},extra||{}));}
+
+  componentDidMount(){document.addEventListener('click',this._closeMenu=()=>{if(this.state.menu)this.setState({menu:null});});}
+  componentWillUnmount(){document.removeEventListener('click',this._closeMenu);}
+
+  ctx(id,e){e.preventDefault();e.stopPropagation();let sel=this.state.selected;if(!sel.includes(id))sel=[id];this.setState({selected:sel,menu:{x:e.clientX,y:e.clientY}});}
+  menuAct(a){
+    const ids=this.state.selected;
+    if(a==='edit'){this.openMeta(ids[0]);return;}
+    if(a==='delete'){this._songs=this._songs.filter(s=>!ids.includes(s.id));this.setState({selected:[],menu:null});return;}
+    if(a==='pin'){this._songs.forEach(s=>{if(ids.includes(s.id))s.onDev=true;});}
+    this.setState({menu:null});
+  }
+  selPin(){const ids=this.state.selected;this._songs.forEach(s=>{if(ids.includes(s.id))s.onDev=true;});this.forceUpdate();}
+  selDelete(){const ids=this.state.selected;this._songs=this._songs.filter(s=>!ids.includes(s.id));this.setState({selected:[]});}
+
+  openMeta(id){const s=this.byId(id);if(!s)return;this.setState({sheet:'meta',metaDraft:Object.assign({},s)});}
+  setMeta(k,v){this.setState({metaDraft:Object.assign({},this.state.metaDraft,{[k]:v})});}
+  saveMeta(){const d=this.state.metaDraft;const s=this.byId(d.id);if(s){s.title=d.title;s.artist=d.artist;s.album=d.album;s.track=d.track;s.genre=d.genre;s.year=d.year;}this.setState({sheet:null,metaDraft:null});}
+
+  openSettings(){this.setState({sheet:'settings',menu:null});}
+  setSetting(k,v){this.setState({settings:Object.assign({},this.state.settings,{[k]:v})});}
+  closeSheet(){this.setState({sheet:null,metaDraft:null});}
+  openOnboard(){this.setState({sheet:'onboard'});}
+
+  openMatch(id){const w=this._wish.find(x=>x.id===id);this.setState({view:'match',matchId:id,matchStep:w&&w.noMatch?'error':'loading'});if(!(w&&w.noMatch))setTimeout(()=>{if(this.state.matchId===id)this.setState({matchStep:'results'});},1100);}
+  pickCand(id){this._cand=id;this.setState({metaSel:id});}
+  runDownload(){this.setState({matchStep:'downloading',dlPct:0});const t=setInterval(()=>{this.setState(s=>{const p=(s.dlPct||0)+Math.random()*16+6;if(p>=100){clearInterval(t);const w=this._wish.find(x=>x.id===s.matchId);if(w)w.state='Downloaded';return{dlPct:100,matchStep:'done'};}return{dlPct:p};});},260);}
+  backWish(){this.setState({view:'wishlist',matchId:null});}
+
+  connect(v){this.setState({deviceConnected:v,syncing:false,syncErr:false});}
+  startSync(){this.setState({syncing:true,syncPct:0,syncErr:false});const t=setInterval(()=>{this.setState(s=>{if(!s.deviceConnected){clearInterval(t);return{syncing:false,syncErr:true};}const p=(s.syncPct||0)+Math.random()*10+4;if(p>=100){clearInterval(t);this._songs.forEach(x=>{});return{syncPct:100,syncing:false};}return{syncPct:p};});},300);}
+
+  reorder(to){const from=this.state.dragIdx;if(from==null||from===to)return;const pl=this._playlists.find(p=>p.id===this.state.activePlaylist);const ids=pl.ids.slice();const[m]=ids.splice(from,1);ids.splice(to,0,m);pl.ids=ids;this.setState({dragIdx:null});}
+
+  markMissing(id){const a=this._apple.find(x=>x.id===id);if(a){for(let i=0;i<(a.total-a.owned);i++)this._wish.push({id:'am'+id+i,artist:a.artist||'Various',title:a.name+' — track '+(a.owned+i+1),source:'Apple Music',state:'Wishlist'});}this.setState({});}
+
+  renderVals(){
+    const st=this.state, t=this.theme(), R=React.createElement;
+    const themeVars=Object.entries(t).map(([k,v])=>'--'+k+':'+v).join(';');
+    // nav
+    const libNav=[
+      Object.assign(this.navItem(st.view==='allSongs'&&!st.filterAlbum,'All Songs'),{go:()=>this.go('allSongs',{filterAlbum:null}),icon:R('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none',stroke:'currentColor',strokeWidth:1.3},R('circle',{cx:5,cy:12,r:2}),R('line',{x1:7,y1:12,x2:7,y2:3,strokeLinecap:'round'}),R('line',{x1:7,y1:3,x2:13,y2:4.6,strokeLinecap:'round'}),R('circle',{cx:11,cy:11.2,r:2}),R('line',{x1:13,y1:11.2,x2:13,y2:4.6,strokeLinecap:'round'}))}),
+      Object.assign(this.navItem(st.view==='albums','Albums'),{go:()=>this.go('albums'),icon:R('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none',stroke:'currentColor',strokeWidth:1.3},R('circle',{cx:8,cy:8,r:6.3}),R('circle',{cx:8,cy:8,r:1.4}))}),
+      Object.assign(this.navItem(st.view==='artists','Artists'),{go:()=>this.go('artists'),icon:R('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none',stroke:'currentColor',strokeWidth:1.3},R('circle',{cx:8,cy:5.4,r:2.7}),R('path',{d:'M3.4 13.5c0-2.5 2-4.2 4.6-4.2s4.6 1.7 4.6 4.2',strokeLinecap:'round'}))})
+    ];
+    const capUsed=([...new Set(this._songs.filter(s=>s.onDev).map(s=>s.id))]).reduce((n,id)=>n+(this.byId(id)?.mb192||0),0)+ (this.byId('al1_2')?.mb192||0)+(this.byId('al0_4')?.mb192||0);
+    const capGB=7.4, usedGB=Math.min(capGB,3.0+capUsed/1024);
+    const capPct=usedGB/capGB;
+    const circ=2*Math.PI*6;
+    const devNav=Object.assign(this.navItem(st.view==='device','Walkman'),{
+      label:st.deviceConnected?'Walkman NW-E394':'Walkman — Offline',
+      ringTrack:st.view==='device'?'rgba(255,255,255,.3)':'var(--track)',
+      ringFg:st.view==='device'?'#fff':'var(--accent)'
+    });
+    if(!st.deviceConnected){devNav.fg='var(--text3)';devNav.ic='var(--text3)';}
+    const capDash=(circ*capPct).toFixed(1)+' '+circ.toFixed(1);
+
+    const plNav=this._playlists.map(p=>Object.assign(this.navItem(st.view==='playlist'&&st.activePlaylist===p.id,p.name),{go:()=>this.go('playlist',{activePlaylist:p.id}),dot:p.onDev?(st.view==='playlist'&&st.activePlaylist===p.id?'#fff':'var(--accent)'):'transparent'}));
+
+    const wishCount=this._wish.filter(w=>w.state!=='Downloaded').length;
+    const wn=this.navItem(st.view==='wishlist','Pending');
+    const wishNav=Object.assign(wn,{badgeBg:st.view==='wishlist'?'rgba(255,255,255,.22)':'var(--chip)',badgeFg:st.view==='wishlist'?'#fff':'var(--text2)'});
+    const appNav=this.navItem(st.view==='apple','Compare');
+
+    // header
+    const pl=this._playlists.find(p=>p.id===st.activePlaylist);
+    const albObj=st.filterAlbum?this._albums.find(a=>a.id===st.filterAlbum):null;
+    let hdrTitle='All Songs',hdrSub='';
+    const vis=this._visibleSongs();
+    const totSec=vis.reduce((n,s)=>n+s.sec,0);
+    if(st.view==='allSongs'){hdrTitle=albObj?albObj.name:'All Songs';hdrSub=vis.length+' songs · '+this._fmtLong(totSec)+(albObj?' · '+albObj.year:'');}
+    else if(st.view==='albums'){hdrTitle='Albums';hdrSub=this._albums.length+' albums';}
+    else if(st.view==='artists'){hdrTitle='Artists';hdrSub=[...new Set(this._songs.map(s=>s.artist))].length+' artists';}
+    else if(st.view==='wishlist'){hdrTitle='Wishlist';hdrSub=wishCount+' pending · '+this._wish.filter(w=>w.state==='Downloaded').length+' downloaded';}
+    else if(st.view==='playlist'){hdrTitle=pl.name;hdrSub=pl.ids.length+' songs · '+this._fmtLong(pl.ids.reduce((n,id)=>n+(this.byId(id)?.sec||0),0));}
+    else if(st.view==='device'){hdrTitle='Walkman NW-E394';hdrSub=st.deviceConnected?usedGB.toFixed(1)+' GB of '+capGB+' GB used':'Not connected';}
+    else if(st.view==='apple'){hdrTitle='Apple Music';hdrSub='Compare your library against Apple Music';}
+    else if(st.view==='match'){const w=this._wish.find(x=>x.id===st.matchId);hdrTitle='Match: '+(w?w.title:'');hdrSub=w?w.artist:'';}
+
+    const isLib=st.view==='allSongs'||st.view==='albums'||st.view==='artists';
+    const swb=(on)=>({fg:on?'var(--text)':'var(--text2)',bg:on?'var(--field)':'transparent'});
+    const sw={};Object.assign(sw,{songsFg:swb(st.view==='allSongs').fg,songsBg:st.view==='allSongs'?'var(--content)':'transparent',albumsFg:swb(st.view==='albums').fg,albumsBg:st.view==='albums'?'var(--content)':'transparent',artistsFg:swb(st.view==='artists').fg,artistsBg:st.view==='artists'?'var(--content)':'transparent'});
+    // song rows
+    const selSet=new Set(st.selected);
+    const rowH=(this.props.compactRows===false)?'38px':'32px';
+    const songRows=vis.map(s=>{const on=selSet.has(s.id);return{
+      title:s.title,artist:s.artist,album:s.album,dur:s.dur,kind:s.kind,art:s.art,rowH,
+      bg:on?'var(--sel)':'transparent',fg:on?'var(--selText)':'var(--text)',fg2:on?'var(--selText)':'var(--text2)',
+      dot:s.onDev?(on?'#fff':'var(--accent)'):'transparent',dotRing:s.onDev?'none':'inset 0 0 0 1px var(--sepStrong)',
+      onClick:(e)=>this.select(s.id,e),onEdit:()=>this.openMeta(s.id),onCtx:(e)=>this.ctx(s.id,e)
+    };});
+    const albumCards=this._albums.map(a=>({name:a.name,initials:a.initials,art:a.art,onDev:a.onDev,meta:a.artist+' · '+a.year,open:()=>this.go('allSongs',{filterAlbum:a.id})}));
+    const artistMap={};this._songs.forEach(s=>{(artistMap[s.artist]=artistMap[s.artist]||{songs:0,albums:new Set(),hue:s.hue,sat:s.sat});artistMap[s.artist].songs++;artistMap[s.artist].albums.add(s.albumId);});
+    const artistRows=Object.entries(artistMap).map(([name,d])=>({name,art:`linear-gradient(150deg, hsl(${d.hue} ${d.sat}% 52%), hsl(${(d.hue+30)%360} ${d.sat}% 32%))`,meta:d.albums.size+' albums · '+d.songs+' songs',open:()=>this.go('allSongs',{filterAlbum:null,search:name==='Kanye West'?'':name})}));
+
+    // tasks / activity
+    const tasks=[];
+    if(st.view==='match'&&st.matchStep==='downloading')tasks.push({label:'Downloading — '+(this._wish.find(x=>x.id===st.matchId)||{}).title,pct:(st.dlPct||0).toFixed(0)+'%',spin:true,cancel:()=>this.setState({matchStep:'results'})});
+    if(st.syncing)tasks.push({label:'Syncing to Walkman — transcoding MP3 192k',pct:(st.syncPct||0).toFixed(0)+'%',spin:true,cancel:()=>this.setState({syncing:false})});
+    if(!this._cancelled.t1)tasks.push({label:'Transcoding — Runaway.flac → mp3',pct:'64%',spin:true,cancel:()=>{this._cancelled.t1=true;this.forceUpdate();}});
+    const hasActivity=tasks.length>0;
+
+    const stChip={Wishlist:{bg:'var(--chip)',fg:'var(--text2)'},Matching:{bg:'rgba(168,104,10,.16)',fg:'var(--amber)'},Downloaded:{bg:'rgba(31,122,69,.16)',fg:'var(--green)'}};
+    const wishRows=this._wish.map(w=>{const c=stChip[w.state];return{title:w.title,artist:w.artist,source:w.source,state:w.state,sBg:c.bg,sFg:c.fg,srcBg:w.source==='Apple Music'?'rgba(74,120,200,.15)':'var(--chip)',srcFg:w.source==='Apple Music'?(st.dark?'#8ab0ee':'#3d6bcc'):'var(--text2)',matching:w.state==='Matching',done:w.state==='Downloaded',open:w.state==='Matching'?(()=>this.openMatch(w.id)):(()=>{})};});
+
+    const plTracks=pl.ids.map((id,i)=>{const s=this.byId(id)||{};return{title:s.title,artist:s.artist,dur:s.dur,art:s.art,onDragStart:()=>this.setState({dragIdx:i}),onDragOver:(e)=>e.preventDefault(),onDrop:()=>this.reorder(i),remove:()=>{const p2=this._playlists.find(p=>p.id===st.activePlaylist);p2.ids=p2.ids.filter(x=>x!==id);this.forceUpdate();}};});
+    const plTotal=this._fmtLong(pl.ids.reduce((n,id)=>n+(this.byId(id)?.sec||0),0));
+
+    const cur=new Set(this._songs.filter(s=>s.onDev).map(s=>s.id));cur.add('al1_2');cur.add('al0_4');
+    const tgt=new Set(this._songs.filter(s=>s.onDev).map(s=>s.id));this._playlists.filter(p=>p.onDev).forEach(p=>p.ids.forEach(id=>tgt.add(id)));
+    const dItem=(id)=>{const s=this.byId(id)||{};return{title:s.title||id,artist:s.artist||'',size:(s.mb192||0).toFixed(1)+' MB',kind:s.kind||'',art:s.art||'var(--chip)'};};
+    const willAdd=[...tgt].filter(id=>!cur.has(id)).map(dItem);
+    const willRemove=[...cur].filter(id=>!tgt.has(id)).map(dItem);
+    const upToDate=[...cur].filter(id=>tgt.has(id)).map(dItem);
+    const addSize=willAdd.reduce((n,x)=>n+parseFloat(x.size),0);
+    const bigCirc=2*Math.PI*34, capBigDash=(bigCirc*capPct).toFixed(1)+' '+bigCirc.toFixed(1);
+
+    const appleRows=this._apple.map(a=>{const miss=a.total-a.owned,sat=a.s==null?54:a.s;return{name:a.name,kind:a.kind,sub:(a.artist?a.artist+' · ':'')+a.owned+' of '+a.total+' owned',miss,missText:miss+' missing',barW:(a.owned/a.total*100).toFixed(1)+'%',art:`linear-gradient(150deg, hsl(${a.h} ${sat}% 52%), hsl(${(a.h+30)%360} ${sat}% 32%))`,complete:miss===0,mark:()=>this.markMissing(a.id)};});
+
+    const mw=this._wish.find(x=>x.id===st.matchId)||{};
+    const candRows=this._cands.map(c=>{const on=this._cand===c.id;const cc=c.conf==='High'?'var(--green)':c.conf==='Medium'?'var(--amber)':'var(--text3)';return{title:c.title,channel:c.channel,dur:c.dur,views:c.views+' views',conf:c.conf+' confidence',confColor:cc,matchText:c.match?'\u2248 duration match':'duration differs',matchColor:c.match?'var(--green)':'var(--amber)',ring:on?'2px solid var(--accent)':'1px solid var(--sepStrong)',dotBg:on?'var(--accent)':'transparent',dotRing:on?'none':'inset 0 0 0 1.5px var(--sepStrong)',bg:on?'var(--selSoft)':'var(--content)',pick:()=>this.pickCand(c.id)};});
+    const mm=st.matchMeta;const mmSet={};['title','artist','album','track','year','genre'].forEach(k=>mmSet[k]=(e)=>this.setState({matchMeta:Object.assign({},st.matchMeta,{[k]:e.target.value})}));
+    const md=st.metaDraft||{};const mdSet={};['title','artist','album','track','genre','year'].forEach(k=>mdSet[k]=(e)=>this.setMeta(k,e.target.value));
+    const S=st.settings; const menu=st.menu;
+
+    return {
+      themeVars, winTitle:'OpenSong',
+      lightBg:st.dark?'transparent':'var(--content)', lightFg:st.dark?'var(--text2)':'var(--text)',
+      darkBg:st.dark?'var(--content)':'transparent', darkFg:st.dark?'var(--text)':'var(--text2)',
+      setLight:()=>this.setState({dark:false}), setDark:()=>this.setState({dark:true}),
+      openSettings:()=>this.openSettings(),
+      libNav, plNav, wishNav, wishCount, devNav, appNav, capDash, deviceConnected:st.deviceConnected,
+      goWishlist:()=>this.go('wishlist'), goDevice:()=>this.go('device'), goApple:()=>this.go('apple'),
+      goAllSongs:()=>this.go('allSongs',{filterAlbum:null}), goAlbums:()=>this.go('albums'), goArtists:()=>this.go('artists'),
+      hdrTitle, hdrSub, showViewSwitch:isLib, showSearch:st.view==='allSongs', showAddWish:st.view==='wishlist',
+      search:st.search, setSearch:(e)=>this.setState({search:e.target.value}), sw, addWish:()=>this.openOnboard&&this.setState({sheet:'addwish'}),
+      hasSel:st.selected.length>0&&st.view==='allSongs', selCount:st.selected.length,
+      clearSel:()=>this.setState({selected:[]}), selAddPl:()=>this.setState({menu:null}), selPin:()=>this.selPin(), selEdit:()=>this.openMeta(st.selected[0]), selDelete:()=>this.selDelete(),
+      vAllSongs:st.view==='allSongs', vAlbums:st.view==='albums', vArtists:st.view==='artists',
+      songRows, songsEmpty:vis.length===0, albumCards, artistRows,
+      hasActivity, idle:!hasActivity, tasks, libStat:this._songs.length+' songs · '+this._albums.length+' albums',
+      vWishlist:st.view==='wishlist', wishRows,
+      vPlaylist:st.view==='playlist', plTracks, plTotal, plName:pl.name, plCount:pl.ids.length, plOnDev:pl.onDev, togglePlDev:()=>{const p2=this._playlists.find(p=>p.id===st.activePlaylist);p2.onDev=!p2.onDev;this.forceUpdate();}, plDevKnob:pl.onDev?'translateX(16px)':'translateX(0)', plDevTrack:pl.onDev?'var(--accent)':'var(--track)',
+      vDevice:st.view==='device', deviceEmpty:!st.deviceConnected, willAdd, willRemove, upToDate, addCount:willAdd.length, remCount:willRemove.length, upCount:upToDate.length, addSizeText:addSize.toFixed(0)+' MB', capText:usedGB.toFixed(1)+' GB', capTotal:capGB.toFixed(1)+' GB', capFree:(capGB-usedGB).toFixed(1)+' GB free', capBigDash, fmtLabel:S.fmt+' '+S.kbps+'k', syncing:st.syncing, syncPctW:(st.syncPct||0)+'%', syncPctText:(st.syncPct||0).toFixed(0)+'%', syncErr:st.syncErr, startSync:()=>this.startSync(), connectOn:()=>this.connect(true), connectOff:()=>this.connect(false),
+      vApple:st.view==='apple', appleRows, importLocal:()=>{},
+      vMatch:st.view==='match', matchLoading:st.matchStep==='loading', matchResults:st.matchStep==='results', matchDownloading:st.matchStep==='downloading', matchDone:st.matchStep==='done', matchError:st.matchStep==='error', candRows, mwTitle:mw.title, mwArtist:mw.artist, mm, mmSet, backWish:()=>this.backWish(), runDownload:()=>this.runDownload(), dlPctText:(st.dlPct||0).toFixed(0)+'%', dlPctW:(st.dlPct||0)+'%', retryMatch:()=>{const w=this._wish.find(x=>x.id===st.matchId);if(w)w.noMatch=false;this.openMatch(st.matchId);},
+      menu, menuX:menu?menu.x+'px':'0px', menuY:menu?menu.y+'px':'0px', mPlay:()=>this.setState({menu:null}), mAdd:()=>this.setState({menu:null}), mPin:()=>this.menuAct('pin'), mEdit:()=>this.menuAct('edit'), mReveal:()=>this.setState({menu:null}), mDelete:()=>this.menuAct('delete'),
+      sheet:st.sheet, showMeta:st.sheet==='meta', showSettings:st.sheet==='settings', showOnboard:st.sheet==='onboard', showAddwish:st.sheet==='addwish', closeSheet:()=>this.closeSheet(), openOnboard:()=>this.openOnboard(),
+      md, mdSet, saveMeta:()=>this.saveMeta(), mdSize:md.mb?md.mb.toFixed(1)+' MB':'', mdArt:md.art||'var(--chip)', mdPath:md.path||'', mdKind:md.kind||'',
+      S, setFmt:(e)=>this.setSetting('fmt',e.target.value), setKbps:(e)=>this.setSetting('kbps',e.target.value), setPath:(e)=>this.setSetting('path',e.target.value),
+      loudKnob:S.loud?'translateX(16px)':'translateX(0)', aiKnob:S.ai?'translateX(16px)':'translateX(0)', fpKnob:S.fp?'translateX(16px)':'translateX(0)', qKnob:S.q?'translateX(16px)':'translateX(0)',
+      loudTrack:S.loud?'var(--accent)':'var(--track)', aiTrack:S.ai?'var(--accent)':'var(--track)', fpTrack:S.fp?'var(--accent)':'var(--track)', qTrack:S.q?'var(--accent)':'var(--track)',
+      toggleLoud:()=>this.setSetting('loud',!S.loud), toggleAi:()=>this.setSetting('ai',!S.ai), toggleFp:()=>this.setSetting('fp',!S.fp), toggleQ:()=>this.setSetting('q',!S.q),
+      nw:st.nw, setNwArtist:(e)=>this.setState({nw:Object.assign({},st.nw,{artist:e.target.value})}), setNwTitle:(e)=>this.setState({nw:Object.assign({},st.nw,{title:e.target.value})}), addWishSave:()=>{const n=st.nw;if(n.title){this._wish.unshift({id:'nw'+Date.now(),artist:n.artist||'Unknown Artist',title:n.title,source:'Custom',state:'Wishlist'});}this.setState({sheet:null,nw:{artist:'',title:''}});}
+    };
+  }
+}
+</script>
+</body>
+</html>
