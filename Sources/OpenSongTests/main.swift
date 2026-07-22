@@ -29,5 +29,7 @@ registerTitleCleanerTests()
 registerYouTubeSourceTests()
 registerSpectralAnalyzerTests()
 registerFingerprinterTests()
+registerArtworkCropTests()
+registerWishlistStoreTests()
 
 t.runAll()

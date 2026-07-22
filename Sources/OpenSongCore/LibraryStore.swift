@@ -22,6 +22,10 @@ extension DeviceRecord: FetchableRecord, MutablePersistableRecord {
     public static let databaseTableName = "device"
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
+extension WishItem: FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "wish_item"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
 
 /// Per-device record of a track OpenSong has placed on the device: where it sits, at
 /// what bitrate, and the master content hash at transfer time (to detect staleness).
@@ -117,6 +121,19 @@ public final class LibraryStore: @unchecked Sendable {
                 t.column("contentHash", .text).notNull()
                 t.column("sizeBytes", .integer).notNull()
                 t.uniqueKey(["deviceUUID", "relativePath"])
+            }
+        }
+        m.registerMigration("v3-wishlist") { db in
+            try db.create(table: "wish_item") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("title", .text).notNull()
+                t.column("artist", .text).notNull()
+                t.column("album", .text)
+                t.column("durationSec", .double)
+                t.column("source", .text).notNull()
+                t.column("state", .text).notNull()
+                t.column("chosenURL", .text)
+                t.column("assetID", .integer)
             }
         }
         return m
@@ -277,6 +294,22 @@ public final class LibraryStore: @unchecked Sendable {
             try db.execute(sql: "DELETE FROM device_track WHERE deviceUUID = ? AND relativePath = ?",
                            arguments: [uuid, relativePath])
         }
+    }
+
+    // MARK: wishlist
+
+    @discardableResult
+    public func addWish(_ wish: WishItem) throws -> Int64 {
+        try dbQueue.write { db in var w = wish; try w.insert(db); return w.id! }
+    }
+    public func allWishes() throws -> [WishItem] {
+        try dbQueue.read { db in try WishItem.order(Column("id").desc).fetchAll(db) }
+    }
+    public func updateWish(_ wish: WishItem) throws {
+        try dbQueue.write { db in try wish.update(db) }
+    }
+    public func deleteWish(_ id: Int64) throws {
+        _ = try dbQueue.write { db in try WishItem.deleteOne(db, key: id) }
     }
 
     // MARK: device

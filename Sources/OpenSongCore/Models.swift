@@ -82,6 +82,36 @@ public struct PlaylistItem: Codable, Equatable, Sendable {
     }
 }
 
+public enum WishSource: String, Codable, Sendable { case custom, appleMusic }
+public enum WishState: String, Codable, Sendable { case wishlist, matching, downloaded }
+
+/// A track the user wants to acquire (Phase 2). Identity is known up front; acquisition
+/// fulfills it. `assetID` links to the created master once downloaded.
+public struct WishItem: Codable, Equatable, Sendable {
+    public var id: Int64?
+    public var title: String
+    public var artist: String
+    public var album: String?
+    public var durationSec: Double?
+    public var source: WishSource
+    public var state: WishState
+    public var chosenURL: String?
+    public var assetID: Int64?
+    public init(id: Int64? = nil, title: String, artist: String, album: String? = nil,
+                durationSec: Double? = nil, source: WishSource = .custom,
+                state: WishState = .wishlist, chosenURL: String? = nil, assetID: Int64? = nil) {
+        self.id = id; self.title = title; self.artist = artist; self.album = album
+        self.durationSec = durationSec; self.source = source; self.state = state
+        self.chosenURL = chosenURL; self.assetID = assetID
+    }
+    /// The identity this wish resolves to (for search + metadata stamping).
+    public var identity: TrackIdentity {
+        TrackIdentity(title: title, artist: artist, albumArtist: artist, album: album,
+                      durationSec: durationSec ?? 0,
+                      provenance: source == .appleMusic ? .appleMusic : .userEdited)
+    }
+}
+
 public struct DeviceRecord: Codable, Equatable, Sendable {
     public var id: Int64?
     public var volumeUUID: String
