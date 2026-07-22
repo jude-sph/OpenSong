@@ -20,5 +20,6 @@ registerTranscoderTests()
 registerLibraryStoreTests()
 registerMetadataResolverTests()
 registerArtworkResolverTests()
+registerImporterTests()
 
 t.runAll()

@@ -128,6 +128,16 @@ public final class LibraryStore: @unchecked Sendable {
         }
     }
 
+    public func assetsForIdentity(_ identityID: Int64) throws -> [AudioAsset] {
+        try dbQueue.read { db in
+            try AudioAsset.filter(Column("identityID") == identityID).fetchAll(db)
+        }
+    }
+
+    public func updateAsset(_ asset: AudioAsset) throws {
+        try dbQueue.write { db in try asset.update(db) }
+    }
+
     public func findIdentity(title: String, artist: String, album: String?) throws -> TrackIdentity? {
         try dbQueue.read { db in
             let candidates = try TrackIdentity
