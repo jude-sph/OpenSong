@@ -24,18 +24,18 @@ spec→plan cycles (will be added tonight if time allows).
 - [x] Task 15 — End-to-end engine integration test
 
 ### UI (SwiftUI, recreates design docs; compiled + screenshotted tonight)
-- [ ] Task 16 — Design tokens + app shell
-- [ ] Task 17 — AppStore (observable, wires engines)
-- [ ] Task 18 — Library browser (Songs/Albums/Artists)
-- [ ] Task 19 — Metadata editor + art picker
-- [ ] Task 20 — Import review table
-- [ ] Task 21 — Playlists view
-- [ ] Task 22 — Device view (capacity ring + sync diff)
-- [ ] Task 23 — Settings (device format MP3/AAC only)
-- [ ] Task 24 — Preview player + menu bar extra
+- [x] Task 16 — Design tokens + app shell
+- [x] Task 17 — AppStore (observable, wires engines)
+- [x] Task 18 — Library browser (Songs/Albums/Artists)
+- [x] Task 19 — Metadata editor + art picker
+- [x] Task 20 — Import review table
+- [x] Task 21 — Playlists view
+- [x] Task 22 — Device view (capacity ring + sync diff)
+- [x] Task 23 — Settings (device format MP3/AAC only)
+- [x] Task 24 — Preview player + menu bar extra
 
 ### Packaging
-- [ ] Task 25 — .app bundle assembly + launch + screenshot
+- [x] Task 25 — .app bundle assembly + launch + screenshot
 - [ ] Task 26 — Morning handoff report
 
 ## Phase 2 — Acquisition (yt-dlp) — not yet spec'd

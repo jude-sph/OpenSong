@@ -216,6 +216,17 @@ public final class LibraryStore: @unchecked Sendable {
         }
     }
 
+    public func allPlaylists() throws -> [Playlist] {
+        try dbQueue.read { db in try Playlist.order(Column("name")).fetchAll(db) }
+    }
+
+    public func setPlaylistSync(_ id: Int64, _ sync: Bool) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE playlist SET syncToDevice = ? WHERE id = ?",
+                           arguments: [sync, id])
+        }
+    }
+
     // MARK: pins
 
     public func pin(assetID: Int64, _ pinned: Bool) throws {
