@@ -18,5 +18,6 @@ registerShellTests()
 registerAudioProbeTests()
 registerTranscoderTests()
 registerLibraryStoreTests()
+registerMetadataResolverTests()
 
 t.runAll()

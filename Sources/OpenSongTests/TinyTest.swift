@@ -10,13 +10,35 @@ struct TestFailure: Error, CustomStringConvertible {
     var description: String { message }
 }
 
+/// Thread-safe error box for bridging async tests into the sync runner.
+private final class ErrorBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Error?
+    func set(_ e: Error?) { lock.lock(); stored = e; lock.unlock() }
+    var error: Error? { lock.lock(); defer { lock.unlock() }; return stored }
+}
+
 final class TinyTest {
     private struct Case { let name: String; let body: () throws -> Void }
     private var cases: [Case] = []
 
-    /// Register a test.
+    /// Register a synchronous test.
     func test(_ name: String, _ body: @escaping () throws -> Void) {
         cases.append(Case(name: name, body: body))
+    }
+
+    /// Register an async test (bridged to the sync runner via a semaphore).
+    func test(_ name: String, _ body: @escaping @Sendable () async throws -> Void) {
+        cases.append(Case(name: name, body: {
+            let sem = DispatchSemaphore(value: 0)
+            let box = ErrorBox()
+            Task {
+                do { try await body() } catch { box.set(error) }
+                sem.signal()
+            }
+            sem.wait()
+            if let e = box.error { throw e }
+        }))
     }
 
     // MARK: assertions
