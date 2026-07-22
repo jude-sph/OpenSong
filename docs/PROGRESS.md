@@ -36,7 +36,7 @@ spec→plan cycles (will be added tonight if time allows).
 
 ### Packaging
 - [x] Task 25 — .app bundle assembly + launch + screenshot
-- [ ] Task 26 — Morning handoff report
+- [x] Task 26 — Morning handoff report
 
 ## Phase 2 — Acquisition (yt-dlp) — not yet spec'd
 - yt-dlp candidate review → download pipeline
@@ -50,5 +50,5 @@ spec→plan cycles (will be added tonight if time allows).
 - Stretch: embedding playlists/dedup, mood/BPM, capacity optimizer
 
 ## Test status
-`swift run OpenSongTests` — 50 passing, 1 live-only skipped (as of Task 15). ENGINE COMPLETE.
+`swift run OpenSongTests` — 51 passing (50 + 1 live). PHASE 1 COMPLETE (engine + UI).
 Run live network tests with `OPENSONG_LIVE=1 swift run OpenSongTests`.
