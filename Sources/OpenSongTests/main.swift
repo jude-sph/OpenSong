@@ -17,5 +17,6 @@ registerM3U8ParserTests()
 registerShellTests()
 registerAudioProbeTests()
 registerTranscoderTests()
+registerLibraryStoreTests()
 
 t.runAll()
