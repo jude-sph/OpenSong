@@ -9,4 +9,6 @@ t.test("harness works") {
     try t.expectEqual(1 + 1, 2, "math")
 }
 
+registerPathSanitizerTests()
+
 t.runAll()
