@@ -25,5 +25,7 @@ registerDeviceManagerTests()
 registerSyncEngineTests()
 registerEndToEndTests()
 registerDeviceHardwareTests()
+registerTitleCleanerTests()
+registerYouTubeSourceTests()
 
 t.runAll()
