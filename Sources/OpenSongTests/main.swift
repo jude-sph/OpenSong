@@ -13,5 +13,6 @@ registerPathSanitizerTests()
 registerModelsTests()
 registerDeviceRelativePathTests()
 registerM3U8WriterTests()
+registerM3U8ParserTests()
 
 t.runAll()
