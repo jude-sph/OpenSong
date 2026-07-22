@@ -15,5 +15,6 @@ registerDeviceRelativePathTests()
 registerM3U8WriterTests()
 registerM3U8ParserTests()
 registerShellTests()
+registerAudioProbeTests()
 
 t.runAll()
