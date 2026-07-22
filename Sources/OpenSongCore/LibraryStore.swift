@@ -23,6 +23,26 @@ extension DeviceRecord: FetchableRecord, MutablePersistableRecord {
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
+/// Per-device record of a track OpenSong has placed on the device: where it sits, at
+/// what bitrate, and the master content hash at transfer time (to detect staleness).
+public struct DeviceTrackRow: Codable, Equatable, Sendable, FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "device_track"
+    public var id: Int64?
+    public var deviceUUID: String
+    public var relativePath: String
+    public var assetID: Int64
+    public var transcodedBitrate: Int
+    public var contentHash: String
+    public var sizeBytes: Int64
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+    public init(id: Int64? = nil, deviceUUID: String, relativePath: String, assetID: Int64,
+                transcodedBitrate: Int, contentHash: String, sizeBytes: Int64) {
+        self.id = id; self.deviceUUID = deviceUUID; self.relativePath = relativePath
+        self.assetID = assetID; self.transcodedBitrate = transcodedBitrate
+        self.contentHash = contentHash; self.sizeBytes = sizeBytes
+    }
+}
+
 /// The SQLite index over the master library. Source of truth for metadata, playlists,
 /// pins, and device records.
 public final class LibraryStore: @unchecked Sendable {
@@ -85,6 +105,18 @@ public final class LibraryStore: @unchecked Sendable {
                 t.column("name", .text).notNull()
                 t.column("targetBitrateKbps", .integer).notNull().defaults(to: 192)
                 t.column("targetFormat", .text).notNull().defaults(to: "mp3")
+            }
+        }
+        m.registerMigration("v2-device-track") { db in
+            try db.create(table: "device_track") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("deviceUUID", .text).notNull()
+                t.column("relativePath", .text).notNull()
+                t.column("assetID", .integer).notNull()
+                t.column("transcodedBitrate", .integer).notNull()
+                t.column("contentHash", .text).notNull()
+                t.column("sizeBytes", .integer).notNull()
+                t.uniqueKey(["deviceUUID", "relativePath"])
             }
         }
         return m
@@ -204,6 +236,35 @@ public final class LibraryStore: @unchecked Sendable {
                 JOIN pinned_asset ON pinned_asset.assetID = audio_asset.id
                 ORDER BY audio_asset.id
             """)
+        }
+    }
+
+    public func identity(_ id: Int64) throws -> TrackIdentity? {
+        try dbQueue.read { db in try TrackIdentity.filter(key: id).fetchOne(db) }
+    }
+
+    // MARK: device_track state
+
+    public func deviceTracks(_ uuid: String) throws -> [DeviceTrackRow] {
+        try dbQueue.read { db in
+            try DeviceTrackRow.filter(Column("deviceUUID") == uuid)
+                .order(Column("relativePath")).fetchAll(db)
+        }
+    }
+
+    public func setDeviceTrack(_ row: DeviceTrackRow) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM device_track WHERE deviceUUID = ? AND relativePath = ?",
+                           arguments: [row.deviceUUID, row.relativePath])
+            var r = row; r.id = nil
+            try r.insert(db)
+        }
+    }
+
+    public func deleteDeviceTrack(_ uuid: String, relativePath: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM device_track WHERE deviceUUID = ? AND relativePath = ?",
+                           arguments: [uuid, relativePath])
         }
     }
 

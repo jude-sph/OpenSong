@@ -22,5 +22,6 @@ registerMetadataResolverTests()
 registerArtworkResolverTests()
 registerImporterTests()
 registerDeviceManagerTests()
+registerSyncEngineTests()
 
 t.runAll()
