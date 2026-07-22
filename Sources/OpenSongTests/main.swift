@@ -28,5 +28,6 @@ registerDeviceHardwareTests()
 registerTitleCleanerTests()
 registerYouTubeSourceTests()
 registerSpectralAnalyzerTests()
+registerFingerprinterTests()
 
 t.runAll()
