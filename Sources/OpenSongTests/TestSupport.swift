@@ -14,13 +14,18 @@ enum TestSupport {
         return base
     }
 
-    /// Generate a real MP3 of `seconds` silence at `bitrate` kbps with the given tags.
+    /// Generate a real MP3 of `seconds` at `bitrate` kbps with the given tags.
+    /// `tone: true` produces a 440 Hz sine (real signal, for loudnorm tests);
+    /// otherwise silence.
     @discardableResult
     static func makeMP3(at url: URL, title: String, artist: String, album: String? = nil,
-                        track: Int? = nil, bitrateKbps: Int = 192, seconds: Double = 1) throws -> URL {
+                        track: Int? = nil, bitrateKbps: Int = 192, seconds: Double = 1,
+                        tone: Bool = false) throws -> URL {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
-        var args = ["-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+        let source = tone ? "sine=frequency=440:sample_rate=44100"
+                          : "anullsrc=r=44100:cl=stereo"
+        var args = ["-y", "-f", "lavfi", "-i", source,
                     "-t", String(seconds), "-c:a", "libmp3lame", "-b:a", "\(bitrateKbps)k",
                     "-id3v2_version", "3",
                     "-metadata", "title=\(title)", "-metadata", "artist=\(artist)"]

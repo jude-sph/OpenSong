@@ -7,6 +7,11 @@ public struct ProbeResult: Sendable, Equatable {
     public var sampleRate: Int
     public var channels: Int
     public var tags: [String: String]   // lowercased keys
+    public init(durationSec: Double, bitrateKbps: Int, codec: String, sampleRate: Int,
+                channels: Int, tags: [String: String]) {
+        self.durationSec = durationSec; self.bitrateKbps = bitrateKbps; self.codec = codec
+        self.sampleRate = sampleRate; self.channels = channels; self.tags = tags
+    }
 }
 
 /// Reads audio metadata via `ffprobe` (JSON output).
