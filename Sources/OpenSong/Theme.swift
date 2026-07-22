@@ -26,10 +26,11 @@ struct Theme: Sendable {
     var text3: Color       { dark ? Color(hex: 0x6f6f77) : Color(hex: 0x9b9ba2) }
     var sep: Color         { (dark ? Color.white : Color.black).opacity(dark ? 0.09 : 0.09) }
     var sepStrong: Color   { (dark ? Color.white : Color.black).opacity(dark ? 0.16 : 0.14) }
-    var accent: Color      { dark ? Color(hex: 0x46a374) : Color(hex: 0x12452b) }
-    var accentText: Color  { dark ? Color(hex: 0x08160f) : Color(hex: 0xffffff) }
-    var selText: Color     { dark ? Color(hex: 0xeafff2) : Color(hex: 0xffffff) }
-    var selSoft: Color     { dark ? Color(hex: 0x46a374).opacity(0.16) : Color(hex: 0x12452b).opacity(0.11) }
+    // British Racing Green — the SAME accent in light and dark (user preference).
+    var accent: Color      { Color(hex: 0x12452b) }
+    var accentText: Color  { Color(hex: 0xffffff) }
+    var selText: Color     { Color(hex: 0xffffff) }
+    var selSoft: Color     { Color(hex: 0x12452b).opacity(dark ? 0.30 : 0.11) }
     var hover: Color       { (dark ? Color.white : Color.black).opacity(dark ? 0.06 : 0.05) }
     var stripe: Color      { (dark ? Color.white : Color.black).opacity(dark ? 0.025 : 0.02) }
     var field: Color       { dark ? Color(hex: 0x2c2c31) : Color(hex: 0xffffff) }

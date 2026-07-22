@@ -10,6 +10,8 @@ cd "$(dirname "$0")/.."
 PRODUCT="OpenSong"
 BUNDLE_ID="dev.jude.opensong"
 DEST="${1:-$HOME/Applications/OpenSong.app}"
+VERSION="$(cat VERSION 2>/dev/null || echo 0.0.0)"
+BUILD="$(date +%Y.%m.%d.%H%M)"
 
 echo "Building release…"
 swift build -c release --product "$PRODUCT"
@@ -32,8 +34,8 @@ cat > "$STAGE/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>$PRODUCT</string>
     <key>CFBundleIconFile</key><string>OpenSong</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key><string>$BUILD</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -59,4 +61,5 @@ mv "$STAGE" "$DEST"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DEST" 2>/dev/null || true
 
 echo "Installed → $DEST   (signed: $IDENTITY)"
+echo "VERSION $VERSION  (build $BUILD)"
 echo "Pin it: open it once, then right-click its Dock icon → Options → Keep in Dock."

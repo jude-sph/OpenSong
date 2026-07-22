@@ -135,9 +135,23 @@ struct SettingsView: View {
                 }
             }
             Spacer()
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle").font(.system(size: 11))
+                Text("OpenSong \(appVersionString)").font(.system(size: 11))
+            }
+            .foregroundStyle(theme.text3)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(22).frame(width: 520, height: 560)
+        .padding(22).frame(width: 520, height: 580)
         .background(theme.sheet)
+    }
+
+    private var appVersionString: String {
+        let info = Bundle.main.infoDictionary
+        let v = info?["CFBundleShortVersionString"] as? String
+        let b = info?["CFBundleVersion"] as? String
+        if let v, let b { return "v\(v) (build \(b))" }
+        return "dev build"
     }
 
     private func group<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {

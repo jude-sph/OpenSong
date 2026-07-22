@@ -4,6 +4,18 @@ Running log of feedback from real use, with status. Newest first.
 
 ## 2026-07-22 session
 
+- [x] **New app icon** — using the provided `OpenSong-icon-macos/AppIcon.icns`.
+- [x] **Consistent green** — dark mode used a lighter green; now always the light-mode
+  British Racing Green (#12452b) in both themes.
+- [x] **Version in Settings + quoted on build** — `VERSION` file drives the app version;
+  install.sh stamps a build id and prints it; Settings footer shows "v0.2.0 (build …)".
+- [x] **Repo hygiene** — 201 leaked SwiftPM intermediates (.o/.d/.swiftdeps) were committed
+  by accident; purged from git and gitignored.
+- [~] **Title-bar dead space** — moved `.ignoresSafeArea()` to the OUTERMOST window-content
+  modifier (was being re-inset by the outer `.frame` before). Canonical fix; can't
+  screenshot the live window from automation (Spaces) so needs visual confirmation.
+
+
 - [x] **Pending should hold playlists, not just songs.** Fix: wish items can carry a
   `playlistName` group (Apple Music playlists mark grouped); Pending shows grouped playlists
   (with counts + "Review N") above loose songs; the OpenSong playlist is recreated once all

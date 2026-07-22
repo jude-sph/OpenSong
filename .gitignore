@@ -4,3 +4,9 @@ xcuserdata/
 .build/
 DerivedData/
 /build/
+# SwiftPM intermediates that leaked into the repo root
+*.o
+*.d
+*.swiftdeps
+*.swiftdeps~
+Package.resolved

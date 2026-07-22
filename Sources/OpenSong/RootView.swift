@@ -28,7 +28,6 @@ struct WindowConfigurator: NSViewRepresentable {
             w.makeKeyAndOrderFront(nil)
             w.orderFrontRegardless()
             NSApp.activate(ignoringOtherApps: true)
-            FileHandle.standardError.write("WindowConfigurator: configured window shot=\(shot) frame=\(w.frame)\n".data(using: .utf8)!)
         }
         DispatchQueue.main.async { configure(0) }
         return v
@@ -59,6 +58,7 @@ struct RootView: View {
             ActivityBar()
         }
         .background(theme.content)
+        .ignoresSafeArea()   // fill under the window titlebar (custom TitleBar sits at y=0)
         .background(WindowConfigurator())
         .sheet(item: Binding(get: { store.openSheet }, set: { store.openSheet = $0 })) { sheet in
             switch sheet {

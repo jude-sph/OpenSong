@@ -34,6 +34,7 @@ struct OpenSongApp: App {
                 .environment(\.theme, Theme(dark: store.dark))
                 .preferredColorScheme(store.dark ? .dark : .light)
                 .frame(minWidth: 980, minHeight: 640)
+                .ignoresSafeArea()   // outermost: no titlebar dead-strip above the custom TitleBar
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1180, height: 770)
