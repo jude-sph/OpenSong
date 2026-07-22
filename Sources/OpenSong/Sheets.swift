@@ -90,16 +90,19 @@ struct SettingsView: View {
                 pathRow(store.settings.libraryPath)
             }
             group("Device Format") {
-                HStack(spacing: 10) {
-                    Picker("Format", selection: $store.settings.deviceFormat) {
-                        Text("MP3").tag("mp3"); Text("AAC").tag("aac")
-                    }.frame(width: 120)
-                    Picker("Bitrate", selection: $store.settings.bitrateKbps) {
-                        ForEach([128, 192, 256, 320], id: \.self) { Text("\($0)k").tag($0) }
-                    }.frame(width: 120)
+                HStack(spacing: 16) {
+                    HStack(spacing: 8) {
+                        Text("Format").font(.system(size: 12)).foregroundStyle(theme.text2)
+                        SegmentedControl(options: [("MP3", "mp3"), ("AAC", "aac")],
+                                         selection: $store.settings.deviceFormat)
+                    }
+                    HStack(spacing: 8) {
+                        Text("Bitrate").font(.system(size: 12)).foregroundStyle(theme.text2)
+                        SegmentedControl(options: [("128", 128), ("192", 192), ("256", 256), ("320", 320)],
+                                         selection: $store.settings.bitrateKbps)
+                    }
                 }
-                Toggle("Loudness normalization (EBU R128)", isOn: $store.settings.loudnessNormalize)
-                    .toggleStyle(.switch).tint(theme.accent).font(.system(size: 12.5))
+                ToggleRow(label: "Loudness normalization (EBU R128)", isOn: $store.settings.loudnessNormalize)
                 Text("The NW-E394 plays MP3/AAC only — Opus and lossless are never sent to the device.")
                     .font(.system(size: 11)).foregroundStyle(theme.text3)
             }
@@ -108,9 +111,9 @@ struct SettingsView: View {
                 pathRow(store.settings.ffmpegPath)
             }
             group("Smart Features") {
-                Toggle("AI metadata cleanup", isOn: $store.settings.aiCleanup).toggleStyle(.switch).tint(theme.accent).font(.system(size: 12.5))
-                Toggle("Fingerprint match verification", isOn: $store.settings.fingerprint).toggleStyle(.switch).tint(theme.accent).font(.system(size: 12.5))
-                Toggle("Audio quality checking", isOn: $store.settings.qualityCheck).toggleStyle(.switch).tint(theme.accent).font(.system(size: 12.5))
+                ToggleRow(label: "AI metadata cleanup", isOn: $store.settings.aiCleanup)
+                ToggleRow(label: "Fingerprint match verification", isOn: $store.settings.fingerprint)
+                ToggleRow(label: "Audio quality checking", isOn: $store.settings.qualityCheck)
             }
             Spacer()
         }

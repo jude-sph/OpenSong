@@ -42,6 +42,36 @@ struct SegmentedControl<T: Hashable>: View {
     }
 }
 
+/// Custom switch (Toggle(.switch) renders as a placeholder offscreen; also matches
+/// the design's 38×22 track / 18px knob).
+struct SwitchToggle: View {
+    @Binding var isOn: Bool
+    @Environment(\.theme) private var theme
+    var body: some View {
+        Button { isOn.toggle() } label: {
+            ZStack(alignment: isOn ? .trailing : .leading) {
+                Capsule().fill(isOn ? theme.accent : theme.track).frame(width: 38, height: 22)
+                Circle().fill(.white).frame(width: 18, height: 18).padding(2)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A labeled setting row with a trailing switch.
+struct ToggleRow: View {
+    let label: String
+    @Binding var isOn: Bool
+    @Environment(\.theme) private var theme
+    var body: some View {
+        HStack {
+            Text(label).font(.system(size: 12.5)).foregroundStyle(theme.text)
+            Spacer()
+            SwitchToggle(isOn: $isOn)
+        }
+    }
+}
+
 /// Custom progress bar (ProgressView renders as a placeholder offscreen).
 struct ProgressBar: View {
     var value: Double

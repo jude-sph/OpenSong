@@ -46,11 +46,11 @@ struct PlaylistDetailView: View {
                 Text("\(songs.count) songs · \(Int(totalSec) / 60) min").font(.system(size: 12)).foregroundStyle(theme.text3)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Toggle("Generate on device (.m3u)", isOn: Binding(
+            HStack(spacing: 8) {
+                Text("Generate on device (.m3u)").font(.system(size: 12)).foregroundStyle(theme.text2)
+                SwitchToggle(isOn: Binding(
                     get: { pl.syncToDevice },
                     set: { _ in store.togglePlaylistDeviceSync(pl.id) }))
-                    .toggleStyle(.switch).tint(theme.accent).font(.system(size: 12))
             }
         }
         .padding(20)
