@@ -32,5 +32,6 @@ registerFingerprinterTests()
 registerArtworkCropTests()
 registerWishlistStoreTests()
 registerAcquireCoordinatorTests()
+registerAppleMusicTests()
 
 t.runAll()
