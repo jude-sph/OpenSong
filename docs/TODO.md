@@ -8,9 +8,9 @@ Kept current as I work. Newest requests at top of "In progress".
 - [x] AM detail: replace per-song "Add" with a top smart button — acts on selected songs,
       or all missing if none selected (mirrors "Mark N missing")
 - [x] AM detail: un-add a song (remove from Pending) once added
-- [ ] Adopt-from-device (UI on Device view + engine wiring)
-- [ ] Delete from library (store delete + context menu + confirm)
-- [ ] Manual playlist management (New Playlist, Add-to-Playlist, reorder/remove in detail)
+- [x] Adopt-from-device (UI on Device view + engine wiring)
+- [x] Delete from library (store delete + context menu + confirm)
+- [x] Manual playlist management (New Playlist, Add-to-Playlist, reorder/remove in detail)
 
 ## Done
 - (see docs/FEEDBACK.md for the full running history)

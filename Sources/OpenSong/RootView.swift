@@ -68,7 +68,21 @@ struct RootView: View {
             case .settings: SettingsView().environment(store).environment(\.theme, theme)
             case .importReview: ImportReviewView().environment(store).environment(\.theme, theme)
             case .addWish: AddWishView().environment(store).environment(\.theme, theme)
+            case .newPlaylist(let ids): NewPlaylistView(songIDs: ids).environment(store).environment(\.theme, theme)
+            case .renamePlaylist(let id): RenamePlaylistView(playlistID: id).environment(store).environment(\.theme, theme)
             }
+        }
+        .confirmationDialog("Delete from library?",
+                            isPresented: Binding(get: { store.deleteConfirm != nil },
+                                                 set: { if !$0 { store.deleteConfirm = nil } }),
+                            presenting: store.deleteConfirm) { ids in
+            Button("Delete \(ids.count) song(s) (move files to Trash)", role: .destructive) {
+                store.deleteSongs(ids, trashFiles: true); store.deleteConfirm = nil
+            }
+            Button("Remove from library only (keep files)") {
+                store.deleteSongs(ids, trashFiles: false); store.deleteConfirm = nil
+            }
+            Button("Cancel", role: .cancel) { store.deleteConfirm = nil }
         }
     }
 

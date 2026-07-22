@@ -192,6 +192,64 @@ public final class LibraryStore: @unchecked Sendable {
         try dbQueue.write { db in try asset.update(db) }
     }
 
+    public func asset(_ id: Int64) throws -> AudioAsset? {
+        try dbQueue.read { db in try AudioAsset.filter(key: id).fetchOne(db) }
+    }
+
+    /// Delete an asset (cascades playlist items + pins) and its now-orphaned identity if
+    /// no other asset references it. Also clears any device_track rows for it.
+    public func deleteAsset(_ id: Int64) throws {
+        try dbQueue.write { db in
+            let identityID = try AudioAsset.filter(key: id).fetchOne(db)?.identityID
+            try db.execute(sql: "DELETE FROM device_track WHERE assetID = ?", arguments: [id])
+            _ = try AudioAsset.deleteOne(db, key: id)
+            if let identityID,
+               try AudioAsset.filter(Column("identityID") == identityID).fetchCount(db) == 0 {
+                _ = try TrackIdentity.deleteOne(db, key: identityID)
+            }
+        }
+    }
+
+    // MARK: playlist editing
+
+    public func removePlaylistItem(playlistID: Int64, assetID: Int64) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM playlist_item WHERE playlistID = ? AND assetID = ?",
+                           arguments: [playlistID, assetID])
+        }
+    }
+    public func deletePlaylist(_ id: Int64) throws {
+        _ = try dbQueue.write { db in try Playlist.deleteOne(db, key: id) }
+    }
+    public func renamePlaylist(_ id: Int64, name: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE playlist SET name = ? WHERE id = ?", arguments: [name, id])
+        }
+    }
+    /// Next free position at the end of a playlist.
+    public func nextPlaylistPosition(_ playlistID: Int64) throws -> Int {
+        try dbQueue.read { db in
+            (try Int.fetchOne(db, sql: "SELECT MAX(position) FROM playlist_item WHERE playlistID = ?",
+                              arguments: [playlistID]) ?? -1) + 1
+        }
+    }
+    public func playlistContains(_ playlistID: Int64, assetID: Int64) throws -> Bool {
+        try dbQueue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistID = ? AND assetID = ?",
+                             arguments: [playlistID, assetID]) ?? 0 > 0
+        }
+    }
+    /// Rewrite a playlist's items in the given asset-id order (for reordering).
+    public func setPlaylistOrder(_ playlistID: Int64, assetIDs: [Int64]) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM playlist_item WHERE playlistID = ?", arguments: [playlistID])
+            for (i, aid) in assetIDs.enumerated() {
+                var item = PlaylistItem(playlistID: playlistID, assetID: aid, position: i)
+                try item.insert(db)
+            }
+        }
+    }
+
     public func findIdentity(title: String, artist: String, album: String?) throws -> TrackIdentity? {
         try dbQueue.read { db in
             let candidates = try TrackIdentity

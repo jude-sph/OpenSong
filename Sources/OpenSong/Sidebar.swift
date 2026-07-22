@@ -12,9 +12,16 @@ struct Sidebar: View {
                 row("Albums", "square.stack", view: .albums)
                 row("Artists", "person.crop.circle", view: .artists)
 
-                section("PLAYLISTS")
+                playlistsHeader
                 ForEach(store.playlists) { pl in
                     row(pl.name, "music.note.list", view: .playlist(pl.id), dot: pl.syncToDevice)
+                        .contextMenu {
+                            Button(pl.syncToDevice ? "Don't sync to device" : "Sync to device") {
+                                store.togglePlaylistDeviceSync(pl.id)
+                            }
+                            Button("Rename…") { store.openSheet = .renamePlaylist(pl.id) }
+                            Button("Delete Playlist", role: .destructive) { store.deletePlaylist(pl.id) }
+                        }
                 }
 
                 section("DEVICE")
@@ -35,6 +42,17 @@ struct Sidebar: View {
             .tracking(0.5)
             .foregroundStyle(theme.text3)
             .padding(.horizontal, 8).padding(.top, 14).padding(.bottom, 4)
+    }
+
+    private var playlistsHeader: some View {
+        HStack {
+            Text("PLAYLISTS").font(.system(size: 11, weight: .semibold)).tracking(0.5).foregroundStyle(theme.text3)
+            Spacer()
+            Button { store.openSheet = .newPlaylist([]) } label: {
+                Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
+            }.buttonStyle(.plain).foregroundStyle(theme.text3)
+        }
+        .padding(.horizontal, 8).padding(.top, 14).padding(.bottom, 4)
     }
 
     private func isActive(_ view: ActiveView) -> Bool { store.activeView == view }

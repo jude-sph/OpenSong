@@ -17,15 +17,25 @@ struct PlaylistDetailView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(songs.enumerated()), id: \.element.id) { idx, song in
                             HStack(spacing: 10) {
-                                Image(systemName: "line.3.horizontal").font(.system(size: 11)).foregroundStyle(theme.text3)
-                                RoundedRectangle(cornerRadius: 3).fill(placeholderGradient(song.album)).frame(width: 24, height: 24)
-                                Text(song.title).font(.system(size: 13)).foregroundStyle(theme.text)
+                                ArtworkThumbnail(path: song.path, seed: song.album, size: 24, corner: 3)
+                                Text(song.title).font(.system(size: 13)).foregroundStyle(theme.text).lineLimit(1)
                                 Spacer()
-                                Text(song.artist).font(.system(size: 12)).foregroundStyle(theme.text3)
+                                Text(song.artist).font(.system(size: 12)).foregroundStyle(theme.text3).lineLimit(1)
                                 Text(song.timeLabel).font(.system(size: 12)).foregroundStyle(theme.text3).monospacedDigit()
                             }
-                            .padding(.horizontal, 20).padding(.vertical, 7)
-                            if idx < songs.count - 1 { Divider().overlay(theme.sep) }
+                            .padding(.horizontal, 20).frame(height: 40)
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) { store.player.play(song, in: songs) }
+                            .contextMenu {
+                                Button("Play") { store.player.play(song, in: songs) }
+                                if idx > 0 { Button("Move Up") { move(idx, to: idx - 1) } }
+                                if idx < songs.count - 1 { Button("Move Down") { move(idx, to: idx + 1) } }
+                                Divider()
+                                Button("Remove from Playlist", role: .destructive) {
+                                    store.removeFromPlaylist(playlistID, song.id)
+                                }
+                            }
+                            Divider().overlay(theme.sep)
                         }
                     }
                 }
@@ -33,6 +43,14 @@ struct PlaylistDetailView: View {
                 Text("Playlist not found").foregroundStyle(theme.text3)
             }
         }
+    }
+
+    private func move(_ from: Int, to: Int) {
+        var ids = songs.map { $0.id }
+        guard from >= 0, from < ids.count, to >= 0, to < ids.count else { return }
+        let m = ids.remove(at: from)
+        ids.insert(m, at: to)
+        store.reorderPlaylist(playlistID, ids)
     }
 
     private func header(_ pl: PlaylistRow) -> some View {
@@ -46,11 +64,17 @@ struct PlaylistDetailView: View {
                 Text("\(songs.count) songs · \(Int(totalSec) / 60) min").font(.system(size: 12)).foregroundStyle(theme.text3)
             }
             Spacer()
-            HStack(spacing: 8) {
-                Text("Generate on device (.m3u)").font(.system(size: 12)).foregroundStyle(theme.text2)
-                SwitchToggle(isOn: Binding(
-                    get: { pl.syncToDevice },
-                    set: { _ in store.togglePlaylistDeviceSync(pl.id) }))
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text("Sync to device").font(.system(size: 12)).foregroundStyle(theme.text2)
+                    SwitchToggle(isOn: Binding(
+                        get: { pl.syncToDevice },
+                        set: { _ in store.togglePlaylistDeviceSync(pl.id) }))
+                }
+                HStack(spacing: 8) {
+                    Button("Rename") { store.openSheet = .renamePlaylist(pl.id) }.buttonStyle(SoftButton())
+                    Button("Delete") { store.deletePlaylist(pl.id) }.buttonStyle(SoftButton())
+                }
             }
         }
         .padding(20)

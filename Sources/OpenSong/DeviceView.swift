@@ -67,6 +67,7 @@ struct DeviceView: View {
                         Text("\(byteLabel(d.totalBytes - projected)) free · Target \(store.settings.deviceFormat.uppercased()) \(store.settings.bitrateKbps)k")
                             .font(.system(size: 12)).foregroundStyle(theme.text3)
                         HStack(spacing: 8) {
+                            Button("Import from device") { store.adoptFromDevice() }.buttonStyle(SoftButton())
                             Button("Bitrate & format…") { store.openSheet = .settings }.buttonStyle(SoftButton())
                             Button("Eject") { store.device.connected = false }.buttonStyle(SoftButton())
                         }.padding(.top, 4)

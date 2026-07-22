@@ -94,6 +94,12 @@ struct SongsTable: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
 
+    /// Songs a context action applies to: the multi-selection if the clicked song is part
+    /// of it, otherwise just the clicked song.
+    private func targetIDs(_ song: SongRow) -> Set<Int64> {
+        (store.selection.contains(song.id) && store.selection.count > 1) ? store.selection : [song.id]
+    }
+
     var body: some View {
         if store.songs.isEmpty {
             emptyLibrary
@@ -111,8 +117,12 @@ struct SongsTable: View {
             Text("Your library is empty").font(.system(size: 15, weight: .semibold)).foregroundStyle(theme.text)
             Text("Import your loose music folders — OpenSong will organize them and suggest clean metadata.")
                 .font(.system(size: 12)).foregroundStyle(theme.text3).multilineTextAlignment(.center).frame(maxWidth: 360)
-            Button { store.beginImport() } label: { Label("Import music…", systemImage: "square.and.arrow.down") }
-                .buttonStyle(AccentButton())
+            HStack(spacing: 10) {
+                Button { store.beginImport() } label: { Label("Import music…", systemImage: "square.and.arrow.down") }
+                    .buttonStyle(AccentButton())
+                Button { store.adoptFromDevice() } label: { Label("Import from Walkman", systemImage: "ipod") }
+                    .buttonStyle(SoftButton())
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -140,16 +150,25 @@ struct SongsTable: View {
                         .onTapGesture(count: 2) { store.player.play(song, in: store.filteredSongs) }
                         .onTapGesture { store.selection = [song.id] }
                         .contextMenu {
+                            let ids = targetIDs(song)
                             Button("Play") { store.player.play(song, in: store.filteredSongs) }
                             Button("Edit Metadata…") { store.openSheet = .metadata(song.id) }
+                            Menu("Add to Playlist") {
+                                ForEach(store.playlists, id: \.id) { pl in
+                                    Button(pl.name) { store.addSongsToPlaylist(pl.id, Array(ids)) }
+                                }
+                                if !store.playlists.isEmpty { Divider() }
+                                Button("New Playlist…") { store.openSheet = .newPlaylist(Array(ids)) }
+                            }
                             Button(song.onDevice ? "Unpin from Device" : "Pin to Device") {
-                                store.pin(song.id, !song.onDevice)
+                                for id in ids { store.pin(id, !song.onDevice) }
                             }
                             Divider()
                             Button("Reveal in Finder") {
                                 NSWorkspace.shared.selectFile((song.path as NSString).expandingTildeInPath,
                                                               inFileViewerRootedAtPath: "")
                             }
+                            Button("Delete from Library", role: .destructive) { store.deleteConfirm = ids }
                         }
                 }
             }

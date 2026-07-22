@@ -18,15 +18,21 @@ final class AppStore {
 
     enum Sheet: Identifiable, Equatable {
         case metadata(Int64), settings, importReview, addWish
+        case newPlaylist([Int64]), renamePlaylist(Int64)
         var id: String {
             switch self {
             case .metadata(let i): return "meta-\(i)"
             case .settings: return "settings"
             case .importReview: return "import"
             case .addWish: return "addWish"
+            case .newPlaylist: return "newPlaylist"
+            case .renamePlaylist(let i): return "rename-\(i)"
             }
         }
     }
+
+    // Pending delete confirmation (song ids).
+    var deleteConfirm: Set<Int64>? = nil
 
     // Data
     var songs: [SongRow] = []
@@ -387,6 +393,84 @@ final class AppStore {
         activity = []
         lastMessage = error.map { "Sync failed: \($0)" } ?? "Sync complete."
         refreshDevice()
+    }
+
+    /// Import the tracks + playlists already on the connected Walkman into the library.
+    func adoptFromDevice() {
+        guard let importer else { return }
+        guard let vol = DeviceDetector.connectedWalkman() else {
+            lastMessage = "Plug in the Walkman first."; return
+        }
+        importing = true
+        activity = [ActivityTask(label: "Importing from Walkman…", progress: 0)]
+        let musicDir = vol.musicDir
+        Task {
+            let (a, p) = await Self.adoptWork(importer, musicDir)
+            self.importing = false; self.activity = []
+            self.lastMessage = "Imported \(a) track(s) and \(p) playlist(s) from the device."
+            self.reload()
+        }
+    }
+    private nonisolated static func adoptWork(_ importer: Importer, _ musicDir: URL) async -> (Int, Int) {
+        await Task.detached {
+            let r = try? importer.adopt(musicDir: musicDir)
+            return (r?.assets.count ?? 0, r?.playlists.count ?? 0)
+        }.value
+    }
+
+    // MARK: delete from library
+
+    func deleteSongs(_ ids: Set<Int64>, trashFiles: Bool = true) {
+        guard let store else { return }
+        for id in ids {
+            if trashFiles, let asset = try? store.asset(id) {
+                let url = URL(fileURLWithPath: (asset.masterPath as NSString).expandingTildeInPath)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                }
+            }
+            try? store.deleteAsset(id)
+        }
+        selection.subtract(ids)
+        reload()
+        lastMessage = "Deleted \(ids.count) song(s)\(trashFiles ? " (moved to Trash)" : "")."
+    }
+
+    // MARK: manual playlists
+
+    @discardableResult
+    func newPlaylist(name: String, songIDs: [Int64] = []) -> Int64? {
+        guard let store, !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        guard let id = try? store.createPlaylist(name: name, syncToDevice: false) else { return nil }
+        addSongsToPlaylist(id, songIDs)
+        reload()
+        return id
+    }
+    func addSongsToPlaylist(_ playlistID: Int64, _ songIDs: [Int64]) {
+        guard let store else { return }
+        for sid in songIDs where !((try? store.playlistContains(playlistID, assetID: sid)) ?? false) {
+            let pos = (try? store.nextPlaylistPosition(playlistID)) ?? 0
+            try? store.addToPlaylist(playlistID: playlistID, assetID: sid, position: pos)
+        }
+        reload()
+        lastMessage = "Added \(songIDs.count) to playlist."
+    }
+    func removeFromPlaylist(_ playlistID: Int64, _ songID: Int64) {
+        try? store?.removePlaylistItem(playlistID: playlistID, assetID: songID)
+        reload()
+    }
+    func deletePlaylist(_ id: Int64) {
+        try? store?.deletePlaylist(id)
+        if case .playlist(let pid) = activeView, pid == id { activeView = .allSongs }
+        reload()
+    }
+    func renamePlaylist(_ id: Int64, _ name: String) {
+        try? store?.renamePlaylist(id, name: name)
+        reload()
+    }
+    func reorderPlaylist(_ playlistID: Int64, _ orderedSongIDs: [Int64]) {
+        try? store?.setPlaylistOrder(playlistID, assetIDs: orderedSongIDs)
+        reload()
     }
 
     // MARK: mutations
