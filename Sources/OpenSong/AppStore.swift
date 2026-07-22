@@ -572,11 +572,27 @@ final class AppStore {
 
     /// Add a single Apple Music track to Pending (grouped under its playlist).
     func addTrackToPending(_ track: AppleMusicTrack, group: String?) {
-        guard let store else { return }
-        var w = track.wishItem; w.playlistName = group
-        _ = try? store.addWish(w)
+        addTracksToPending([track], group: group)
+    }
+
+    func addTracksToPending(_ tracks: [AppleMusicTrack], group: String?) {
+        guard let store, !tracks.isEmpty else { return }
+        for t in tracks where !isPending(t) && !isOwned(t) {
+            var w = t.wishItem; w.playlistName = group
+            _ = try? store.addWish(w)
+        }
         reload()
-        lastMessage = "Added “\(track.name)” to Pending."
+        lastMessage = "Added \(tracks.count) to Pending."
+    }
+
+    func removeTracksFromPending(_ tracks: [AppleMusicTrack]) {
+        guard let store, !tracks.isEmpty else { return }
+        let keys = Set(tracks.map { "\($0.name)␟\($0.artist)" })
+        for w in wishItems where keys.contains("\(w.title)␟\(w.artist)") {
+            if let id = w.id { try? store.deleteWish(id) }
+        }
+        reload()
+        lastMessage = "Removed \(tracks.count) from Pending."
     }
 
     /// Whether a given Apple Music track is already owned in the library.

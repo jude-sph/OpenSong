@@ -1,9 +1,12 @@
 import SwiftUI
+import AppKit
 import OpenSongCore
 
 struct AppleMusicDetailView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
+    @State private var selection: Set<Int> = []
+    @State private var anchor: Int? = nil
 
     private var col: AppleMusicCollection? { store.amDetail }
 
@@ -13,8 +16,8 @@ struct AppleMusicDetailView: View {
                 header(col)
                 Divider().overlay(theme.sep)
                 ScrollOrStack(alignment: .leading) {
-                    ForEach(Array(col.tracks.enumerated()), id: \.offset) { _, track in
-                        trackRow(track, group: col.name)
+                    ForEach(Array(col.tracks.enumerated()), id: \.offset) { idx, track in
+                        trackRow(track, index: idx)
                         Divider().overlay(theme.sep)
                     }
                 }
@@ -24,8 +27,22 @@ struct AppleMusicDetailView: View {
         }
     }
 
+    /// The target set: the selected tracks, or all tracks when nothing is selected.
+    private func targetIndices(_ col: AppleMusicCollection) -> [Int] {
+        selection.isEmpty ? Array(col.tracks.indices) : selection.sorted()
+    }
+    private func addable(_ col: AppleMusicCollection) -> [AppleMusicTrack] {
+        targetIndices(col).map { col.tracks[$0] }.filter { !store.isOwned($0) && !store.isPending($0) }
+    }
+    private func removable(_ col: AppleMusicCollection) -> [AppleMusicTrack] {
+        targetIndices(col).map { col.tracks[$0] }.filter { store.isPending($0) }
+    }
+
     private func header(_ col: AppleMusicCollection) -> some View {
         let own = store.ownership(col)
+        let add = addable(col)
+        let remove = removable(col)
+        let scope = selection.isEmpty ? "all" : "\(selection.count) selected"
         return HStack(spacing: 14) {
             Button { store.activeView = .appleMusic } label: {
                 Image(systemName: "chevron.left").font(.system(size: 13))
@@ -41,40 +58,68 @@ struct AppleMusicDetailView: View {
                             .foregroundStyle(Color(hex: 0x2e7bd6))
                     }
                 }
-                Text("\(col.tracks.count) tracks · owned \(own.owned), \(own.missing.count) missing")
+                Text("\(col.tracks.count) tracks · owned \(own.owned), \(own.missing.count) missing"
+                     + (selection.isEmpty ? "" : " · \(selection.count) selected"))
                     .font(.system(size: 12)).foregroundStyle(theme.text3)
             }
             Spacer()
-            if !own.missing.isEmpty {
-                Button("Mark \(own.missing.count) missing") { store.markMissing(col) }.buttonStyle(AccentButton())
+            // Smart action button: acts on the target set (selected, or all).
+            if !add.isEmpty {
+                Button("Add \(add.count) to Pending") {
+                    store.addTracksToPending(add, group: col.name); selection = []
+                }.buttonStyle(AccentButton())
+            } else if !remove.isEmpty {
+                Button("Remove \(remove.count) from Pending") {
+                    store.removeTracksFromPending(remove); selection = []
+                }.buttonStyle(SoftButton())
+            } else {
+                Text(scope == "all" ? "All in library" : "Nothing to add").font(.system(size: 12)).foregroundStyle(theme.text3)
             }
         }
         .padding(20).background(theme.header)
     }
 
-    private func trackRow(_ track: AppleMusicTrack, group: String) -> some View {
+    private func trackRow(_ track: AppleMusicTrack, index: Int) -> some View {
         let owned = store.isOwned(track)
         let pending = store.isPending(track)
+        let selected = selection.contains(index)
+        let (dotColor, filled): (Color, Bool) = owned ? (theme.green, true)
+            : pending ? (theme.amber, true) : (theme.text3, false)
         return HStack(spacing: 12) {
-            Circle()
-                .fill(owned ? theme.green : Color.clear)
-                .overlay(Circle().stroke(owned ? Color.clear : theme.text3, lineWidth: 1.2))
+            Circle().fill(filled ? dotColor : Color.clear)
+                .overlay(Circle().stroke(filled ? Color.clear : theme.text3, lineWidth: 1.2))
                 .frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 1) {
-                Text(track.name).font(.system(size: 13)).foregroundStyle(owned ? theme.text3 : theme.text).lineLimit(1)
-                Text(track.artist).font(.system(size: 11)).foregroundStyle(theme.text3).lineLimit(1)
+                Text(track.name).font(.system(size: 13))
+                    .foregroundStyle(selected ? theme.selText : (owned ? theme.text3 : theme.text)).lineLimit(1)
+                Text(track.artist).font(.system(size: 11))
+                    .foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text3).lineLimit(1)
             }
             Spacer()
             if owned {
-                Label("In library", systemImage: "checkmark").font(.system(size: 11)).foregroundStyle(theme.green)
+                Label("In library", systemImage: "checkmark").font(.system(size: 11))
+                    .foregroundStyle(selected ? theme.selText : theme.green)
             } else if pending {
                 Text("Pending").font(.system(size: 11, weight: .semibold))
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(theme.amber.opacity(0.15), in: Capsule()).foregroundStyle(theme.amber)
-            } else {
-                Button("Add") { store.addTrackToPending(track, group: group) }.buttonStyle(SoftButton())
+                    .foregroundStyle(selected ? theme.selText : theme.amber)
             }
         }
-        .padding(.horizontal, 20).padding(.vertical, 7)
+        .padding(.horizontal, 20).frame(height: 40)
+        .background(selected ? theme.accent : Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture { handleTap(index) }
+    }
+
+    private func handleTap(_ index: Int) {
+        let mods = NSEvent.modifierFlags
+        if mods.contains(.shift), let a = anchor {
+            let lo = min(a, index), hi = max(a, index)
+            selection.formUnion(Set(lo...hi))
+        } else if mods.contains(.command) {
+            if selection.contains(index) { selection.remove(index) } else { selection.insert(index) }
+            anchor = index
+        } else {
+            selection = [index]; anchor = index
+        }
     }
 }

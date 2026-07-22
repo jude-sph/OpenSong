@@ -118,7 +118,8 @@ struct AppleMusicView: View {
             }
             Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.text3)
         }
-        .padding(.horizontal, 20).padding(.vertical, 10)
+        .padding(.horizontal, 20)
+        .frame(height: 66)   // fixed row height (avoids LazyVStack gaps from variable content)
         .contentShape(Rectangle())
         .onTapGesture { store.openAMDetail(col) }
     }
