@@ -17,6 +17,9 @@ struct LibraryView: View {
         VStack(spacing: 0) {
             ContentHeader(title: title, subtitle: subtitle) {
                 HStack(spacing: 10) {
+                    Button { store.beginImport() } label: {
+                        Label("Import…", systemImage: "square.and.arrow.down")
+                    }.buttonStyle(SoftButton())
                     SegmentedControl(options: [("Songs", ActiveView.allSongs),
                                                ("Albums", .albums), ("Artists", .artists)],
                                      selection: $store.activeView)
@@ -92,6 +95,41 @@ struct SongsTable: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
+        if store.songs.isEmpty {
+            emptyLibrary
+        } else if store.filteredSongs.isEmpty {
+            emptyState(icon: "magnifyingglass", title: "No matches", subtitle: "Nothing matches “\(store.search)”.")
+        } else {
+            table
+        }
+    }
+
+    private var emptyLibrary: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "music.note.list").font(.system(size: 44)).foregroundStyle(theme.text3)
+            Text("Your library is empty").font(.system(size: 15, weight: .semibold)).foregroundStyle(theme.text)
+            Text("Import your loose music folders — OpenSong will organize them and suggest clean metadata.")
+                .font(.system(size: 12)).foregroundStyle(theme.text3).multilineTextAlignment(.center).frame(maxWidth: 360)
+            Button { store.beginImport() } label: { Label("Import music…", systemImage: "square.and.arrow.down") }
+                .buttonStyle(AccentButton())
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func emptyState(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: icon).font(.system(size: 34)).foregroundStyle(theme.text3)
+            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(theme.text)
+            Text(subtitle).font(.system(size: 12)).foregroundStyle(theme.text3)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var table: some View {
         VStack(spacing: 0) {
             headerRow
             Divider().overlay(theme.sep)
@@ -103,10 +141,14 @@ struct SongsTable: View {
                         .onTapGesture { store.selection = [song.id] }
                         .contextMenu {
                             Button("Edit Metadata…") { store.openSheet = .metadata(song.id) }
-                            Button("Pin to Device") {}
+                            Button(song.onDevice ? "Unpin from Device" : "Pin to Device") {
+                                store.pin(song.id, !song.onDevice)
+                            }
                             Divider()
-                            Button("Reveal in Finder") {}
-                            Button("Delete from Library", role: .destructive) {}
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.selectFile((song.path as NSString).expandingTildeInPath,
+                                                              inFileViewerRootedAtPath: "")
+                            }
                         }
                 }
             }

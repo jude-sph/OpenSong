@@ -24,5 +24,6 @@ registerImporterTests()
 registerDeviceManagerTests()
 registerSyncEngineTests()
 registerEndToEndTests()
+registerDeviceHardwareTests()
 
 t.runAll()

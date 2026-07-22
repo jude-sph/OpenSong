@@ -1,4 +1,5 @@
 import SwiftUI
+import OpenSongCore
 
 struct MetadataEditorView: View {
     let songID: Int64
@@ -45,7 +46,11 @@ struct MetadataEditorView: View {
             HStack {
                 Spacer()
                 Button("Cancel") { store.openSheet = nil }.buttonStyle(SoftButton())
-                Button("Save to file tags") { store.openSheet = nil }.buttonStyle(AccentButton())
+                Button("Save to file tags") {
+                    store.saveMetadata(songID: songID, title: title, artist: artist, album: album,
+                                       track: track, genre: genre, year: year)
+                    store.openSheet = nil
+                }.buttonStyle(AccentButton())
             }
         }
         .padding(22).frame(width: 560)
@@ -87,7 +92,7 @@ struct SettingsView: View {
                 Button { store.openSheet = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(theme.text3)
             }
             group("Master Library") {
-                pathRow(store.settings.libraryPath)
+                pathRow(store.settings.libraryPath) { store.chooseLibraryFolder() }
             }
             group("Device Format") {
                 HStack(spacing: 16) {
@@ -107,8 +112,8 @@ struct SettingsView: View {
                     .font(.system(size: 11)).foregroundStyle(theme.text3)
             }
             group("Tool Paths") {
-                pathRow(store.settings.ytDlpPath)
-                pathRow(store.settings.ffmpegPath)
+                pathRow(store.settings.ytDlpPath) { store.chooseToolPath(\.ytDlpPath) }
+                pathRow(store.settings.ffmpegPath) { store.chooseToolPath(\.ffmpegPath) }
             }
             group("Smart Features") {
                 ToggleRow(label: "AI metadata cleanup", isOn: $store.settings.aiCleanup)
@@ -127,11 +132,11 @@ struct SettingsView: View {
             content()
         }
     }
-    private func pathRow(_ path: String) -> some View {
+    private func pathRow(_ path: String, _ choose: @escaping () -> Void) -> some View {
         HStack {
             Text(path).font(.system(size: 12, design: .monospaced)).foregroundStyle(theme.text2).lineLimit(1).truncationMode(.head)
             Spacer()
-            Button("Choose…") {}.buttonStyle(SoftButton())
+            Button("Choose…") { choose() }.buttonStyle(SoftButton())
         }
         .padding(.horizontal, 10).frame(height: 34)
         .background(theme.field, in: RoundedRectangle(cornerRadius: 7))
@@ -142,18 +147,64 @@ struct SettingsView: View {
 struct ImportReviewView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        @Bindable var store = store
+        VStack(alignment: .leading, spacing: 12) {
             Text("Import Review").font(.system(size: 16, weight: .bold)).foregroundStyle(theme.text)
-            Text("Point OpenSong at a folder of loose files; review canonical suggestions before importing.")
+            Text("Review the canonical metadata (from the iTunes catalog, duration-matched) before importing. Toggle a row to keep your original tags instead.")
                 .font(.system(size: 12)).foregroundStyle(theme.text3)
-            Spacer()
-            HStack { Spacer()
-                Button("Cancel") { store.openSheet = nil }.buttonStyle(SoftButton())
-                Button("Choose folder…") {}.buttonStyle(AccentButton())
+
+            HStack(spacing: 0) {
+                Text("").frame(width: 28)
+                Text("ORIGINAL").frame(maxWidth: .infinity, alignment: .leading)
+                Text("SUGGESTED").frame(maxWidth: .infinity, alignment: .leading)
+                Text("USE").frame(width: 90, alignment: .trailing)
+            }
+            .font(.system(size: 10, weight: .semibold)).tracking(0.4).foregroundStyle(theme.text3)
+            .padding(.horizontal, 8)
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach($store.importRows) { $row in
+                        HStack(spacing: 0) {
+                            Toggle("", isOn: $row.include).labelsHidden().toggleStyle(.checkbox).frame(width: 28)
+                            metaCell(row.candidate.original)
+                            metaCell(row.candidate.suggested, placeholder: "no catalog match")
+                            SegmentedControl(options: [("Orig", false), ("Sug", true)], selection: $row.useSuggested)
+                                .frame(width: 90).disabled(row.candidate.suggested == nil).opacity(row.candidate.suggested == nil ? 0.4 : 1)
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 6)
+                        .background(theme.stripe.opacity(row.include ? 1 : 0), in: RoundedRectangle(cornerRadius: 6))
+                        Divider().overlay(theme.sep)
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity)
+
+            HStack {
+                Text("\(store.importRows.filter { $0.include }.count) of \(store.importRows.count) selected")
+                    .font(.system(size: 12)).foregroundStyle(theme.text3)
+                Spacer()
+                Button("Cancel") { store.openSheet = nil; store.importRows = [] }.buttonStyle(SoftButton())
+                Button("Import \(store.importRows.filter { $0.include }.count)") { store.commitImport() }
+                    .buttonStyle(AccentButton())
             }
         }
-        .padding(22).frame(width: 640, height: 460)
+        .padding(22).frame(width: 720, height: 560)
         .background(theme.sheet)
+    }
+
+    private func metaCell(_ ident: TrackIdentity?, placeholder: String = "") -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if let ident {
+                Text(ident.title).font(.system(size: 12.5)).foregroundStyle(theme.text).lineLimit(1)
+                Text("\(ident.artist)\(ident.album.map { " · \($0)" } ?? "")")
+                    .font(.system(size: 11)).foregroundStyle(theme.text3).lineLimit(1)
+            } else {
+                Text(placeholder).font(.system(size: 11)).foregroundStyle(theme.text3).italic()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

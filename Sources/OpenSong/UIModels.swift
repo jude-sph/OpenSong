@@ -3,6 +3,7 @@ import Foundation
 /// UI-facing row models (mirror the design docs' data model).
 struct SongRow: Identifiable, Hashable {
     var id: Int64
+    var identityID: Int64
     var title: String
     var artist: String
     var album: String
@@ -58,7 +59,7 @@ struct DeviceState {
     var songCount: Int = 0
 }
 
-struct AppSettings {
+struct AppSettings: Codable {
     var libraryPath: String = "~/Music/OpenSong Library"
     var deviceFormat: String = "mp3"      // MP3 or AAC only (device constraint)
     var bitrateKbps: Int = 192

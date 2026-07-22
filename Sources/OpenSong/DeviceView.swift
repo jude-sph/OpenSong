@@ -72,7 +72,8 @@ struct DeviceView: View {
                         }.padding(.top, 4)
                     }
                     Spacer()
-                    Button("Sync") { store.buildSyncPreview() }.buttonStyle(AccentButton())
+                    Button(store.syncing ? "Syncing…" : "Sync") { store.runSync() }
+                        .buttonStyle(AccentButton()).disabled(store.syncing)
                 }
                 .padding(16)
                 .background(theme.header, in: RoundedRectangle(cornerRadius: 10))
