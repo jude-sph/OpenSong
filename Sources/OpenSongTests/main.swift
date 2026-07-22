@@ -12,5 +12,6 @@ t.test("harness works") {
 registerPathSanitizerTests()
 registerModelsTests()
 registerDeviceRelativePathTests()
+registerM3U8WriterTests()
 
 t.runAll()
