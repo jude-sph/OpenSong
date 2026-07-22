@@ -49,9 +49,13 @@ spec→plan cycles (will be added tonight if time allows).
 - Spectral quality check (ffmpeg FFT)
 - Lyrics (LRCLIB)
 
-## Phase 3 — Apple Music — not yet spec'd
+## Phase 3 — Apple Music — COMPLETE
+- [x] AppleMusicBridge (JXA/osascript) + parser
+- [x] Fuzzy ownership compare (owned vs missing)
+- [x] Mark-missing -> wishlist, import non-DRM local files
+- [x] UI: Compare view (owned/missing bars, mark-missing)
 - Browse/compare via osascript, mark-to-acquire, import local non-DRM
-- Stretch: embedding playlists/dedup, mood/BPM, capacity optimizer
+- Stretch (deferred by choice): embedding playlists/dedup, mood/BPM, capacity optimizer
 
 ## Test status
 `swift run OpenSongTests` — 51 passing (53 total; live iTunes + real-device tests gated). PHASE 1 COMPLETE (engine + UI + wiring).

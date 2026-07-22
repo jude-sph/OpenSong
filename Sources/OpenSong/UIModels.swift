@@ -46,7 +46,7 @@ struct PlaylistRow: Identifiable, Hashable {
 }
 
 enum ActiveView: Hashable {
-    case allSongs, albums, artists, device, wishlist
+    case allSongs, albums, artists, device, wishlist, appleMusic
     case playlist(Int64)
     case match(Int64)
 }

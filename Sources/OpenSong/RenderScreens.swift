@@ -54,11 +54,13 @@ func renderScreens() {
     write("09-wishlist-light", dark: false, size: winSize) { RootShot(view: .wishlist, seedWishes: true) }
     // Match review (Phase 2)
     write("10-match-dark", dark: true, size: winSize) { RootShot(view: .match, seedWishes: true) }
+    // Apple Music compare (Phase 3)
+    write("11-applemusic-light", dark: false, size: winSize) { RootShot(view: .appleMusic) }
 }
 
 /// Renders RootView with a pre-set active view (and optional simulated device).
 private struct RootShot: View {
-    enum Which { case allSongs, albums, artists, device, firstPlaylist, wishlist, match }
+    enum Which { case allSongs, albums, artists, device, firstPlaylist, wishlist, match, appleMusic }
     let view: Which
     var simulateDevice: Bool = false
     var seedWishes: Bool = false
@@ -75,6 +77,7 @@ private struct RootShot: View {
         case .artists: store.activeView = .artists
         case .device: store.activeView = .device
         case .wishlist: store.activeView = .wishlist
+        case .appleMusic: store.seedAppleMusicForRender(); store.activeView = .appleMusic
         case .match:
             store.seedMatchForRender()
             if let id = store.matchWishID { store.activeView = .match(id) }

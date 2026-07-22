@@ -49,6 +49,11 @@ final class AppStore {
     var matchVerify: VerifyResult? = nil
     enum MatchStep: Equatable { case loading, results, downloading, done, error }
 
+    // Apple Music (Phase 3)
+    var appleMusic: [AppleMusicCollection] = []
+    var appleMusicLoading = false
+    var appleMusicError: String? = nil
+
     struct SyncPreview {
         var willAdd: [SongRow]
         var willRemove: [String]
@@ -502,6 +507,76 @@ final class AppStore {
             RankedCandidate(candidate: Candidate(videoID: "c", url: URL(string: "https://y/c")!, title: "Xtal - live edit 2011", channel: "bootlegs", durationSec: 410, viewCount: 5_000), durationDelta: 117, confidence: .low),
         ]
         selectedCandidateID = "a"
+    }
+
+    // MARK: Apple Music (Phase 3)
+
+    func loadAppleMusic() {
+        appleMusicLoading = true; appleMusicError = nil
+        Task {
+            let (cols, err) = await Self.appleMusicWork()
+            self.appleMusic = cols
+            self.appleMusicError = err
+            self.appleMusicLoading = false
+        }
+    }
+
+    func ownership(_ col: AppleMusicCollection) -> (owned: Int, total: Int, missing: [AppleMusicTrack]) {
+        let lib = songs.map {
+            AppleMusicCompare.LibraryTrack(title: $0.title, artist: $0.artist, album: $0.album, durationSec: $0.durationSec)
+        }
+        let (owned, missing) = AppleMusicCompare.ownership(of: col.tracks, in: lib)
+        return (owned, col.tracks.count, missing)
+    }
+
+    func markMissing(_ col: AppleMusicCollection) {
+        guard let store else { return }
+        let missing = ownership(col).missing
+        for tr in missing { _ = try? store.addWish(tr.wishItem) }
+        reload()
+        lastMessage = "Added \(missing.count) missing track(s) to the wishlist."
+    }
+
+    func importLocal(_ track: AppleMusicTrack) {
+        guard let importer, let loc = track.location else { return }
+        let url = URL(fileURLWithPath: loc)
+        let identity = track.identity
+        Task {
+            let ok = await Self.importOneWork(importer, url, identity)
+            self.reload()
+            self.lastMessage = ok ? "Imported \(track.name)." : "Couldn't import \(track.name)."
+        }
+    }
+
+    func seedAppleMusicForRender() {
+        func tr(_ n: String, _ a: String, _ al: String, _ d: Double) -> AppleMusicTrack {
+            AppleMusicTrack(name: n, artist: a, album: al, durationSec: d)
+        }
+        appleMusic = [
+            AppleMusicCollection(name: "Blonde", kind: .album, tracks: [
+                tr("Nikes", "Frank Ocean", "Blonde", 314), tr("Ivy", "Frank Ocean", "Blonde", 249),
+                tr("Self Control", "Frank Ocean", "Blonde", 249), tr("White Ferrari", "Frank Ocean", "Blonde", 248),
+                tr("Nights", "Frank Ocean", "Blonde", 307),
+            ]),
+            AppleMusicCollection(name: "Demon Days", kind: .album, tracks: [
+                tr("Feel Good Inc.", "Gorillaz", "Demon Days", 222), tr("Dare", "Gorillaz", "Demon Days", 245),
+                tr("El Mañana", "Gorillaz", "Demon Days", 222),
+            ]),
+            AppleMusicCollection(name: "late night mix", kind: .playlist, tracks: [
+                tr("Ivy", "Frank Ocean", "Blonde", 249), tr("Aruarian Dance", "Nujabes", "Departure", 244),
+                tr("Peaceland", "Nujabes", "Modal Soul", 201),
+            ]),
+        ]
+    }
+
+    private nonisolated static func appleMusicWork() async -> ([AppleMusicCollection], String?) {
+        await Task.detached {
+            do { return (try AppleMusicBridge().playlists(), nil) }
+            catch { return ([], "\(error)") }
+        }.value
+    }
+    private nonisolated static func importOneWork(_ importer: Importer, _ url: URL, _ identity: TrackIdentity) async -> Bool {
+        await Task.detached { (try? importer.importOne(url, identity: identity, source: .importedLoose)) != nil }.value
     }
 
     private nonisolated static func searchWork(_ coord: AcquireCoordinator, _ wish: WishItem) async -> Result<[RankedCandidate], Error> {

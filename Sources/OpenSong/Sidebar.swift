@@ -23,7 +23,7 @@ struct Sidebar: View {
                 section("WISHLIST")
                 row("Pending", "bookmark", view: .wishlist)
                 section("APPLE MUSIC")
-                dimRow("Compare", "square.on.square", badge: nil)
+                row("Compare", "square.on.square", view: .appleMusic)
             }
             .padding(10)
         }
