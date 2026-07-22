@@ -27,5 +27,6 @@ registerEndToEndTests()
 registerDeviceHardwareTests()
 registerTitleCleanerTests()
 registerYouTubeSourceTests()
+registerSpectralAnalyzerTests()
 
 t.runAll()

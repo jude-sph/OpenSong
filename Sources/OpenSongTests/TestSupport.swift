@@ -44,6 +44,24 @@ enum TestSupport {
         return url
     }
 
+    /// Broadband noise, optionally low-passed at `lowpassHz` (to simulate a bandwidth-limited
+    /// / upsampled source). WAV so there's no codec bandwidth limiting of its own.
+    @discardableResult
+    static func makeNoise(at url: URL, lowpassHz: Int? = nil, seconds: Double = 2) throws -> URL {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        var args = ["-y", "-f", "lavfi", "-i", "anoisesrc=r=44100:amplitude=0.5", "-t", String(seconds)]
+        if let hz = lowpassHz {
+            // FFT brickwall (like a codec's hard lowpass): -100 dB above the cutoff.
+            args += ["-af", "firequalizer=gain='if(gte(f,\(hz)),-100,0)'"]
+        }
+        args += ["-c:a", "pcm_s16le", url.path]
+        let r = try Shell.run(ffmpeg, args)
+        guard r.status == 0 else { throw NSError(domain: "TestSupport", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "ffmpeg noise failed: \(r.stderrString)"]) }
+        return url
+    }
+
     /// Generate a real FLAC (lossless) file.
     @discardableResult
     static func makeFLAC(at url: URL, title: String, artist: String, seconds: Double = 1) throws -> URL {
