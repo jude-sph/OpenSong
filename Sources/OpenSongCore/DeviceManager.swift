@@ -59,6 +59,13 @@ public struct DeviceManager: Sendable {
         try assertUnderMusic(url)
         if FileManager.default.fileExists(atPath: url.path) {
             try FileManager.default.removeItem(at: url)
+        } else {
+            // FAT32 keeps decomposed (NFD) names; a composed path won't resolve there.
+            let alt = URL(fileURLWithPath: url.path.decomposedStringWithCanonicalMapping)
+            try assertUnderMusic(alt)
+            if FileManager.default.fileExists(atPath: alt.path) {
+                try FileManager.default.removeItem(at: alt)
+            }
         }
         pruneEmptyParents(of: url)
     }
@@ -82,6 +89,24 @@ public struct DeviceManager: Sendable {
         if FileManager.default.fileExists(atPath: file.path) {
             try FileManager.default.removeItem(at: file)
         }
+    }
+
+    /// Names of the playlists OpenSong wrote on its last sync, kept in a hidden manifest beside
+    /// them. Renaming, deleting or un-flagging a playlist would otherwise leave its `.m3u8` on the
+    /// device forever — and the manifest is what makes cleaning them up safe: playlists the device
+    /// or another program created aren't listed, so they're never touched.
+    public func writtenPlaylistNames() -> [String] {
+        guard let text = try? String(contentsOf: playlistManifestURL, encoding: .utf8) else { return [] }
+        return text.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+    }
+
+    public func setWrittenPlaylistNames(_ names: [String]) {
+        let text = names.joined(separator: "\n")
+        try? text.write(to: playlistManifestURL, atomically: true, encoding: .utf8)
+    }
+
+    private var playlistManifestURL: URL {
+        volume.musicDir.appendingPathComponent(".opensong-playlists")
     }
 
     public func existingPlaylists() throws -> [URL] {
@@ -111,10 +136,14 @@ public struct DeviceManager: Sendable {
         }
     }
 
+    /// Relative backslash path, Unicode-normalized to NFC. The device is FAT32 and macOS hands
+    /// back *decomposed* (NFD) filenames from it, while the paths OpenSong derives from tags are
+    /// composed — so "Ce matin-là" read off the device wouldn't equal the same path in the
+    /// database, and every accented/CJK track looked missing on every sync.
     static func relativeBackslash(of url: URL, under base: URL) -> String {
         let basePath = base.standardizedFileURL.path
         var p = url.standardizedFileURL.path
         if p.hasPrefix(basePath + "/") { p.removeFirst(basePath.count + 1) }
-        return p.replacingOccurrences(of: "/", with: "\\")
+        return p.replacingOccurrences(of: "/", with: "\\").precomposedStringWithCanonicalMapping
     }
 }

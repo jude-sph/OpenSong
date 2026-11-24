@@ -6,25 +6,34 @@ import OpenSongCore
 /// Falls back to a gradient when a playlist has no artwork.
 struct AppleMusicArt: View {
     let name: String
+    var kind: AppleMusicKind = .playlist
+    var artist: String = ""
     var size: CGFloat
+    var corner: CGFloat = 6
     @State private var image: NSImage?
 
     var body: some View {
         Group {
             if let image { Image(nsImage: image).resizable().aspectRatio(contentMode: .fill) }
-            else { Rectangle().fill(placeholderGradient(name)) }
+            else { Rectangle().fill(placeholderGradient(name + artist)) }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .task(id: name) { await load() }
+        .clipShape(RoundedRectangle(cornerRadius: corner))
+        .task(id: name + "␟" + artist) { await load() }
     }
 
     private func load() async {
         image = nil
         if renderMode { return }
-        let cache = ArtworkCache.dir().appendingPathComponent("am-\(ArtworkCache.key(name)).img")
+        let prefix = kind == .album ? "amalb" : "am"
+        let cacheKey = kind == .album ? name + "␟" + artist : name
+        let cache = ArtworkCache.dir().appendingPathComponent("\(prefix)-\(ArtworkCache.key(cacheKey)).img")
         if !FileManager.default.fileExists(atPath: cache.path) {
-            let ok = await Task.detached { AppleMusicBridge().writePlaylistArtwork(named: name, to: cache.path) }.value
+            let n = name, a = artist, k = kind
+            let ok = await Task.detached {
+                k == .album ? AppleMusicBridge().writeAlbumArtwork(album: n, artist: a, to: cache.path)
+                            : AppleMusicBridge().writePlaylistArtwork(named: n, to: cache.path)
+            }.value
             if !ok { FileManager.default.createFile(atPath: cache.path, contents: Data()); return }
         }
         let size = (try? FileManager.default.attributesOfItem(atPath: cache.path)[.size] as? Int) ?? 0
@@ -36,32 +45,53 @@ struct AppleMusicView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
 
+    private var browsingAlbums: Bool { store.appleMusicBrowse == .albums }
+    private var collections: [AppleMusicCollection] {
+        browsingAlbums ? store.sortedAppleMusicAlbums : store.sortedAppleMusic
+    }
+    private var isLoading: Bool {
+        browsingAlbums ? store.appleMusicAlbumsLoading : store.appleMusicLoading
+    }
+
     var body: some View {
         @Bindable var store = store
         return VStack(spacing: 0) {
-            ContentHeader(title: "Apple Music", subtitle: "\(store.appleMusic.count) playlists") {
+            ContentHeader(title: "Apple Music",
+                          subtitle: "\(collections.count) \(browsingAlbums ? "albums" : "playlists")") {
                 HStack(spacing: 10) {
-                    if !store.appleMusic.isEmpty {
+                    SegmentedControl(options: AMBrowse.allCases.map { ($0.rawValue, $0) },
+                                     selection: $store.appleMusicBrowse)
+                    if !browsingAlbums && !store.appleMusic.isEmpty {
                         SegmentedControl(options: AMSort.allCases.map { ($0.rawValue, $0) },
                                          selection: $store.appleMusicSort)
                     }
-                    Button { store.loadAppleMusic() } label: {
-                        Label(store.appleMusicLoading ? "Loading…" : "Refresh", systemImage: "arrow.clockwise")
-                    }.buttonStyle(SoftButton()).disabled(store.appleMusicLoading)
+                    Button { store.updateCloudLibrary() } label: {
+                        Label(store.updatingCloudLibrary ? "Updating…" : "Update Cloud Library", systemImage: "icloud.and.arrow.up")
+                    }.buttonStyle(SoftButton()).disabled(store.updatingCloudLibrary)
+                    Button { refresh() } label: {
+                        Label(isLoading ? "Loading…" : "Refresh", systemImage: "arrow.clockwise")
+                    }.buttonStyle(SoftButton()).disabled(isLoading)
                 }
             }
             Divider().overlay(theme.sep)
-            if store.appleMusicLoading {
+            if isLoading {
                 loadingState
-            } else if store.appleMusic.isEmpty {
+            } else if collections.isEmpty {
                 emptyState
             } else {
                 ScrollOrStack(alignment: .leading) {
-                    ForEach(store.sortedAppleMusic) { col in row(col) }
+                    ForEach(collections) { col in row(col) }
                 }
             }
         }
         .onAppear { if store.appleMusic.isEmpty && !store.appleMusicLoading && !renderMode { store.loadAppleMusic() } }
+        .onChange(of: store.appleMusicBrowse) { _, mode in
+            if mode == .albums && !renderMode { store.loadAppleMusicAlbums() }
+        }
+    }
+
+    private func refresh() {
+        if browsingAlbums { store.loadAppleMusicAlbums(force: true) } else { store.loadAppleMusic() }
     }
 
     private var loadingState: some View {
@@ -79,12 +109,14 @@ struct AppleMusicView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Spacer()
-            Image(systemName: "square.on.square").font(.system(size: 34)).foregroundStyle(theme.text3)
+            Image(systemName: browsingAlbums ? "square.stack" : "square.on.square").font(.system(size: 34)).foregroundStyle(theme.text3)
             Text("Compare with Apple Music").font(.system(size: 14, weight: .semibold)).foregroundStyle(theme.text)
-            Text(store.appleMusicError ?? "Load your Apple Music playlists to see what you already own and mark the rest to acquire.")
+            Text(store.appleMusicError ?? (browsingAlbums
+                 ? "Load your Apple Music library albums to see which you already own and mark the rest to acquire."
+                 : "Load your Apple Music playlists to see what you already own and mark the rest to acquire."))
                 .font(.system(size: 12)).foregroundStyle(store.appleMusicError == nil ? theme.text3 : theme.red)
                 .multilineTextAlignment(.center).frame(maxWidth: 380)
-            Button("Grant access & load") { store.loadAppleMusic() }.buttonStyle(AccentButton())
+            Button("Grant access & load") { refresh() }.buttonStyle(AccentButton())
             Text("First use asks macOS for permission to control Music.")
                 .font(.system(size: 11)).foregroundStyle(theme.text3)
             Spacer()
@@ -95,7 +127,7 @@ struct AppleMusicView: View {
         let own = store.ownership(col)
         let frac = own.total > 0 ? Double(own.owned) / Double(own.total) : 0
         return HStack(spacing: 12) {
-            AppleMusicArt(name: col.name, size: 46)
+            AppleMusicArt(name: col.name, kind: col.kind, artist: col.albumArtist, size: 46)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(col.name).font(.system(size: 13, weight: .medium)).foregroundStyle(theme.text).lineLimit(1)
@@ -106,8 +138,10 @@ struct AppleMusicView: View {
                             .foregroundStyle(Color(hex: 0x2e7bd6))
                     }
                 }
-                Text("owned \(own.owned) of \(own.total)\(col.isUserMade ? "" : " · not yours")")
-                    .font(.system(size: 11)).foregroundStyle(theme.text3)
+                Text(col.kind == .album
+                     ? "\(col.albumArtist) · owned \(own.owned) of \(own.total)"
+                     : "owned \(own.owned) of \(own.total)\(col.isUserMade ? "" : " · not yours")")
+                    .font(.system(size: 11)).foregroundStyle(theme.text3).lineLimit(1)
                 ProgressBar(value: frac).frame(width: 260)
             }
             Spacer()

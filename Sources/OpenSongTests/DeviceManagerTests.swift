@@ -25,6 +25,30 @@ func registerDeviceManagerTests() {
         try t.expectEqual(try manager.listManagedTracks().count, 0, "empty after remove")
     }
 
+    t.test("decomposed (FAT32-style) filenames list and remove as composed paths") {
+        let root = try TestSupport.tempDir("dev-nfd")
+        let volume = try TempVolume(root: root)
+        let manager = DeviceManager(volume: volume)
+        // Plant a file whose name is stored decomposed, the way the Walkman's FAT32 volume
+        // hands names back ("Ce matin-là" with a combining accent).
+        let composed = "Air\\Moon Safari\\Ce matin-là.mp3"
+        let dir = volume.musicDir.appendingPathComponent("Air/Moon Safari")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let onDisk = dir.appendingPathComponent("Ce matin-là.mp3".decomposedStringWithCanonicalMapping)
+        try TestSupport.makeMP3(at: onDisk, title: "Ce matin-là", artist: "Air", seconds: 1)
+
+        try t.expectEqual(try manager.listManagedTracks(), [composed], "listed in composed form")
+        try manager.remove(relative: composed)   // the path shape stored in the database
+        try t.expectEqual(try manager.listManagedTracks().count, 0, "removed despite the mismatch")
+    }
+
+    t.test("device paths derived from tags are composed") {
+        let ident = TrackIdentity(title: "Ce matin-là".decomposedStringWithCanonicalMapping,
+                                  artist: "Air", albumArtist: "Air", album: "Moon Safari", durationSec: 1)
+        try t.expectEqual(DeviceRelativePath.backslashPath(for: ident),
+                          "Air\\Moon Safari\\Ce matin-là.mp3", "normalized to NFC")
+    }
+
     t.test("writePlaylist writes .m3u8 bytes into MUSIC") {
         let root = try TestSupport.tempDir("dev")
         let volume = try TempVolume(root: root)

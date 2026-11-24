@@ -69,4 +69,18 @@ public struct AudioProbe: Sendable {
                            codec: audio.codec_name ?? "unknown", sampleRate: sampleRate,
                            channels: audio.channels ?? 0, tags: tags)
     }
+
+    /// Codec of the file's embedded cover image (`mjpeg`, `png`, …), or nil when it has none.
+    /// In an audio file the only video stream is the attached picture.
+    public func attachedPictureCodec(_ url: URL) -> String? {
+        struct Streams: Decodable {
+            struct Stream: Decodable { var codec_type: String?; var codec_name: String? }
+            var streams: [Stream]
+        }
+        guard let r = try? Shell.run(ffprobePath, [
+            "-v", "quiet", "-select_streams", "v:0", "-print_format", "json", "-show_streams", url.path
+        ]), r.status == 0 else { return nil }
+        return (try? JSONDecoder().decode(Streams.self, from: r.stdout))?
+            .streams.first(where: { $0.codec_type == "video" })?.codec_name
+    }
 }

@@ -17,8 +17,10 @@ public enum DeviceRelativePath {
         return [artist, album, "\(title).\(ext)"]
     }
 
+    /// Backslash relative path, Unicode-normalized to NFC so it compares equal to the same path
+    /// read back off the device (FAT32 hands back decomposed names — see `DeviceManager`).
     public static func backslashPath(for i: TrackIdentity) -> String {
-        components(for: i).joined(separator: "\\")
+        components(for: i).joined(separator: "\\").precomposedStringWithCanonicalMapping
     }
 
     /// On-disk URL under the device MUSIC directory (always `.mp3`).

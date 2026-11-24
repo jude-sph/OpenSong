@@ -59,6 +59,9 @@ struct SidebarFooter: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(task.label).font(.system(size: 11)).foregroundStyle(theme.text2).lineLimit(1)
                         ProgressBar(value: task.progress).frame(height: 3)
+                        if !task.detail.isEmpty {
+                            Text(task.detail).font(.system(size: 10)).foregroundStyle(theme.text3).lineLimit(1)
+                        }
                     }
                 }
             }

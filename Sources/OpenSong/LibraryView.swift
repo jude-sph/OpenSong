@@ -4,40 +4,116 @@ struct LibraryView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
 
-    private var title: String {
-        switch store.activeView {
-        case .albums: return "Albums"
-        case .artists: return "Artists"
-        default: return store.filterAlbumID == nil ? "All Songs" : "Album"
-        }
-    }
+    // Detail modes (a single album's tracks, or a single artist's albums). filterAlbumID takes
+    // priority so an album opened from within an artist still shows, and backing out of it
+    // returns to that artist.
+    private var detailAlbum: AlbumRow? { store.filterAlbumID.flatMap { id in store.albums.first { $0.id == id } } }
+    private var artistDetail: String? { (store.activeView == .artists && store.filterAlbumID == nil) ? store.filterArtist : nil }
 
     var body: some View {
         @Bindable var store = store
         VStack(spacing: 0) {
-            ContentHeader(title: title, subtitle: subtitle) {
+            header
+            Divider().overlay(theme.sep)
+            content
+        }
+    }
+
+    @ViewBuilder private var header: some View {
+        if let album = detailAlbum {
+            let dev = store.albumDeviceState(album)
+            detailHeader(title: album.name, subtitle: "\(album.songIDs.count) songs · \(album.artist)",
+                         back: { store.filterAlbumID = nil }) {
+                shuffleButton { store.shuffle(store.filteredSongs) }
+                Button { store.findArtwork(for: album) } label: { Label("Replace artwork", systemImage: "photo") }
+                    .buttonStyle(SoftButton())
+                Button { store.backfillTrackNumbers(for: album) } label: {
+                    Label(store.trackBackfilling ? "Fixing…" : "Fix track numbers", systemImage: "list.number")
+                }.buttonStyle(SoftButton()).disabled(store.trackBackfilling)
+                Button {
+                    store.addToAppleMusic(album.songIDs, label: "Adding “\(album.name)” to Apple Music…")
+                } label: {
+                    Label(store.addingToAppleMusic ? "Adding…" : "Add to Apple Music", systemImage: "music.note.house")
+                }.buttonStyle(SoftButton()).disabled(store.addingToAppleMusic)
+                if dev.onDevice < dev.total {
+                    Button { store.pinAlbum(album, true) } label: { Label("Send album to device", systemImage: "ipod") }
+                        .buttonStyle(AccentButton())
+                } else {
+                    Button { store.pinAlbum(album, false) } label: { Label("On device — remove", systemImage: "ipod") }
+                        .buttonStyle(SoftButton())
+                }
+            }
+        } else if let name = artistDetail {
+            detailHeader(title: name, subtitle: "\(store.albums.filter { $0.artist == name }.count) albums",
+                         back: { store.filterArtist = nil }) {
+                shuffleButton { store.shuffle(store.songsForArtist(name)) }
+            }
+        } else {
+            @Bindable var store = store
+            ContentHeader(title: normalTitle, subtitle: normalSubtitle) {
                 HStack(spacing: 10) {
+                    if store.activeView == .allSongs && !store.filteredSongs.isEmpty {
+                        shuffleButton { store.shuffle(store.filteredSongs) }
+                    }
+                    if store.activeView == .albums && !store.albums.isEmpty {
+                        SegmentedControl(options: AlbumSort.allCases.map { ($0.rawValue, $0) },
+                                         selection: $store.albumSort)
+                    }
+                    Button { store.openSheet = .addURL } label: {
+                        Label("Paste URL", systemImage: "link")
+                    }.buttonStyle(SoftButton())
                     Button { store.beginImport() } label: {
                         Label("Import…", systemImage: "square.and.arrow.down")
                     }.buttonStyle(SoftButton())
-                    SegmentedControl(options: [("Songs", ActiveView.allSongs),
-                                               ("Albums", .albums), ("Artists", .artists)],
-                                     selection: $store.activeView)
                     SearchField(text: $store.search)
-                }
-            }
-            Divider().overlay(theme.sep)
-            Group {
-                switch store.activeView {
-                case .albums: AlbumsGrid()
-                case .artists: ArtistsList()
-                default: SongsTable()
                 }
             }
         }
     }
 
-    private var subtitle: String {
+    private func shuffleButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) { Label("Shuffle", systemImage: "shuffle") }.buttonStyle(SoftButton())
+    }
+
+    @ViewBuilder private var content: some View {
+        if detailAlbum != nil {
+            SongsTable()
+        } else if let name = artistDetail {
+            AlbumsGrid(artistFilter: name)
+        } else {
+            switch store.activeView {
+            case .albums: AlbumsGrid()
+            case .artists: ArtistsList()
+            default: SongsTable()
+            }
+        }
+    }
+
+    private func detailHeader<A: View>(title: String, subtitle: String, back: @escaping () -> Void,
+                                       @ViewBuilder actions: () -> A) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Button(action: back) {
+                Image(systemName: "chevron.left").font(.system(size: 15, weight: .semibold))
+            }.buttonStyle(.plain).foregroundStyle(theme.text2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 18, weight: .bold)).tracking(-0.2).foregroundStyle(theme.text).lineLimit(1)
+                Text(subtitle).font(.system(size: 12)).foregroundStyle(theme.text3)
+            }
+            Spacer()
+            actions()
+        }
+        .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 12)
+        .background(theme.header)
+    }
+
+    private var normalTitle: String {
+        switch store.activeView {
+        case .albums: return "Albums"
+        case .artists: return "Artists"
+        default: return "All Songs"
+        }
+    }
+    private var normalSubtitle: String {
         switch store.activeView {
         case .albums: return "\(store.albums.count) albums"
         case .artists: return "\(store.artists.count) artists"
@@ -93,11 +169,32 @@ struct SearchField: View {
 struct SongsTable: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
+    @State private var anchor: Int? = nil
 
     /// Songs a context action applies to: the multi-selection if the clicked song is part
     /// of it, otherwise just the clicked song.
     private func targetIDs(_ song: SongRow) -> Set<Int64> {
         (store.selection.contains(song.id) && store.selection.count > 1) ? store.selection : [song.id]
+    }
+
+    /// The given ids in the table's current display order (so Play/Play-Next queue correctly).
+    private func orderedIDs(_ ids: Set<Int64>) -> [Int64] {
+        store.filteredSongs.map { $0.id }.filter { ids.contains($0) }
+    }
+
+    /// Click / ⇧-click (range) / ⌘-click (toggle) selection, like the Apple Music detail list.
+    private func handleTap(_ idx: Int, _ song: SongRow) {
+        let mods = NSEvent.modifierFlags
+        let rows = store.filteredSongs
+        if mods.contains(.shift), let a = anchor, a < rows.count {
+            let lo = min(a, idx), hi = max(a, idx)
+            store.selection.formUnion(rows[lo...hi].map { $0.id })
+        } else if mods.contains(.command) {
+            if store.selection.contains(song.id) { store.selection.remove(song.id) } else { store.selection.insert(song.id) }
+            anchor = idx
+        } else {
+            store.selection = [song.id]; anchor = idx
+        }
     }
 
     var body: some View {
@@ -148,11 +245,25 @@ struct SongsTable: View {
                     rowView(song, striped: idx % 2 == 1)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) { store.player.play(song, in: store.filteredSongs) }
-                        .onTapGesture { store.selection = [song.id] }
+                        .onTapGesture { handleTap(idx, song) }
                         .contextMenu {
                             let ids = targetIDs(song)
-                            Button("Play") { store.player.play(song, in: store.filteredSongs) }
-                            Button("Edit Metadata…") { store.openSheet = .metadata(song.id) }
+                            let n = ids.count
+                            Button(n > 1 ? "Play \(n)" : "Play") { store.playNow(orderedIDs(ids)) }
+                            Button(n > 1 ? "Play \(n) Next" : "Play Next") { store.playNext(orderedIDs(ids)) }
+                            if n == 1 {
+                                Button("Edit Metadata…") { store.openSheet = .metadata(song.id) }
+                                Button("Replace artwork…") { store.findArtwork(forSong: song) }
+                            }
+                            if ids.contains(where: { store.replacementWish(for: $0) != nil }) {
+                                Button("Keep This Version") {
+                                    for id in ids { store.cancelReplacement(id) }
+                                }
+                            } else {
+                                Button(n > 1 ? "Find New Versions of \(n)…" : "Find a New Version…") {
+                                    store.markForReplacement(ids)
+                                }
+                            }
                             Menu("Add to Playlist") {
                                 ForEach(store.playlists, id: \.id) { pl in
                                     Button(pl.name) { store.addSongsToPlaylist(pl.id, Array(ids)) }
@@ -160,15 +271,23 @@ struct SongsTable: View {
                                 if !store.playlists.isEmpty { Divider() }
                                 Button("New Playlist…") { store.openSheet = .newPlaylist(Array(ids)) }
                             }
-                            Button(song.onDevice ? "Unpin from Device" : "Pin to Device") {
-                                for id in ids { store.pin(id, !song.onDevice) }
+                            Button(n > 1 ? "Add \(n) to Apple Music" : "Add to Apple Music") {
+                                store.addToAppleMusic(orderedIDs(ids),
+                                                      label: n > 1 ? "Adding \(n) songs to Apple Music…" : "Adding “\(song.title)” to Apple Music…")
+                            }
+                            let anyOffDevice = orderedIDs(ids).contains { store.song($0)?.onDevice == false }
+                            Button(anyOffDevice ? "Send to Device" : "Remove from Device") {
+                                for id in ids { store.pin(id, anyOffDevice) }
                             }
                             Divider()
-                            Button("Reveal in Finder") {
-                                NSWorkspace.shared.selectFile((song.path as NSString).expandingTildeInPath,
-                                                              inFileViewerRootedAtPath: "")
+                            if n == 1 {
+                                Button("Reveal in Finder") {
+                                    NSWorkspace.shared.selectFile((song.path as NSString).expandingTildeInPath,
+                                                                  inFileViewerRootedAtPath: "")
+                                }
                             }
-                            Button("Delete from Library", role: .destructive) { store.deleteConfirm = ids }
+                            Button(n > 1 ? "Delete \(n) from Library" : "Delete from Library",
+                                   role: .destructive) { store.deleteConfirm = ids }
                         }
                 }
             }
@@ -177,36 +296,84 @@ struct SongsTable: View {
 
     private var headerRow: some View {
         HStack(spacing: 10) {
-            Color.clear.frame(width: 9)
-            Color.clear.frame(width: 22)
-            cell("TITLE", width: nil, align: .leading)
-            cell("ARTIST", width: 220, align: .leading)
-            cell("ALBUM", width: 220, align: .leading)
-            cell("TIME", width: 56, align: .trailing)
-            cell("KIND", width: 92, align: .trailing)
+            // Spans the on-device dot + artwork columns (neither is labelled) so there's a
+            // usable target for sorting on-device tracks to the top.
+            deviceHeaderCell
+            cell("TITLE", .title, width: nil, align: .leading)
+            cell("ARTIST", .artist, width: 175, align: .leading)
+            cell("ALBUM", .album, width: 175, align: .leading)
+            cell("ADDED", .dateAdded, width: 84, align: .trailing)
+            cell("TIME", .time, width: 50, align: .trailing)
+            cell("KIND", .kind, width: 78, align: .trailing)
         }
         .padding(.horizontal, 20).frame(height: 26)
         .background(theme.header)
     }
-    private func cell(_ s: String, width: CGFloat?, align: Alignment) -> some View {
-        Text(s).font(.system(size: 11, weight: .semibold)).tracking(0.4).foregroundStyle(theme.text3)
-            .frame(width: width, alignment: align)
-            .frame(maxWidth: width == nil ? .infinity : nil, alignment: align)
+    /// Sort-by-device header: an iPod glyph over the dot/artwork columns.
+    private var deviceHeaderCell: some View {
+        let active = store.songSort.column == .device
+        return HStack(spacing: 3) {
+            Image(systemName: "ipod").font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(active ? theme.text : theme.text3)
+            if active {
+                Image(systemName: store.songSort.ascending ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 8, weight: .bold)).foregroundStyle(theme.text2)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: 41, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { store.songSort.toggle(.device) }
+        .help("Sort by on-device")
+    }
+
+    /// A clickable column header: sorts by its column, toggling direction on repeat clicks.
+    private func cell(_ s: String, _ col: SongSort.Column, width: CGFloat?, align: Alignment) -> some View {
+        let active = store.songSort.column == col
+        return HStack(spacing: 3) {
+            if align == .trailing { Spacer(minLength: 0) }
+            Text(s).font(.system(size: 11, weight: .semibold)).tracking(0.4)
+                .foregroundStyle(active ? theme.text : theme.text3)
+            if active {
+                Image(systemName: store.songSort.ascending ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 8, weight: .bold)).foregroundStyle(theme.text2)
+            }
+            if align == .leading { Spacer(minLength: 0) }
+        }
+        .frame(width: width, alignment: align)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: align)
+        .contentShape(Rectangle())
+        .onTapGesture { store.songSort.toggle(col) }
     }
 
     private func rowView(_ song: SongRow, striped: Bool) -> some View {
         let selected = store.selection.contains(song.id)
+        let playing = store.player.current?.id == song.id
         return HStack(spacing: 10) {
             Circle().fill(song.onDevice ? theme.accent : Color.clear)
                 .overlay(Circle().stroke(selected ? theme.selText : theme.text3, lineWidth: song.onDevice ? 0 : 1.2))
                 .frame(width: 9, height: 9)
-            ArtworkThumbnail(path: song.path, seed: song.album, size: 22, corner: 3)
-            Text(song.title).foregroundStyle(selected ? theme.selText : theme.text).lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(song.artist).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text2).lineLimit(1).frame(width: 220, alignment: .leading)
-            Text(song.album).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text2).lineLimit(1).frame(width: 220, alignment: .leading)
-            Text(song.timeLabel).foregroundStyle(selected ? theme.selText : theme.text2).monospacedDigit().frame(width: 56, alignment: .trailing)
-            Text(song.kindLabel).font(.system(size: 11)).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text3).frame(width: 92, alignment: .trailing)
+            ArtworkThumbnail(path: song.path, seed: song.album, size: 22, corner: 3, version: store.artVersion)
+                .overlay { if playing { NowPlayingBadge(size: 22, playing: store.player.isPlaying) } }
+            Text(song.title).foregroundStyle(playing ? theme.accent : (selected ? theme.selText : theme.text))
+                .fontWeight(playing ? .semibold : .regular).lineLimit(1)
+            // Why this track is sitting in Pending, said on the row itself rather than only there.
+            if store.replacementWish(for: song.id) != nil {
+                Text("finding a new version")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(selected ? theme.selText : theme.accent)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(
+                        Capsule().stroke(selected ? theme.selText.opacity(0.6) : theme.accent,
+                                         lineWidth: 1))
+                    .help("Marked for replacement — pick a new version in Pending.")
+            }
+            Spacer(minLength: 8)
+            Text(song.artist).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text2).lineLimit(1).frame(width: 175, alignment: .leading)
+            Text(song.album).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text2).lineLimit(1).frame(width: 175, alignment: .leading)
+            Text(song.addedLabel).font(.system(size: 12)).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text3).monospacedDigit().frame(width: 84, alignment: .trailing)
+            Text(song.timeLabel).foregroundStyle(selected ? theme.selText : theme.text2).monospacedDigit().frame(width: 50, alignment: .trailing)
+            Text(song.kindLabel).font(.system(size: 11)).foregroundStyle(selected ? theme.selText.opacity(0.85) : theme.text3).frame(width: 78, alignment: .trailing)
         }
         .font(.system(size: 13))
         .padding(.horizontal, 20).frame(height: 32)
@@ -215,15 +382,23 @@ struct SongsTable: View {
 }
 
 struct AlbumsGrid: View {
+    var artistFilter: String? = nil
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
     private let cols = [GridItem(.adaptive(minimum: 146, maximum: 200), spacing: 24)]
 
+    private var albumsToShow: [AlbumRow] {
+        guard let a = artistFilter else { return store.albums }
+        return store.albums.filter { $0.artist == a }
+    }
+
     var body: some View {
-        ScrollOrStack(alignment: .leading) {
-            if renderMode {
-                let rows = stride(from: 0, to: store.albums.count, by: 5).map {
-                    Array(store.albums[$0..<min($0 + 5, store.albums.count)])
+        @Bindable var store = store
+        if renderMode {
+            ScrollOrStack(alignment: .leading) {
+                let all = albumsToShow
+                let rows = stride(from: 0, to: all.count, by: 5).map {
+                    Array(all[$0..<min($0 + 5, all.count)])
                 }
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
@@ -233,22 +408,32 @@ struct AlbumsGrid: View {
                         }
                     }
                 }.padding(20)
-            } else {
-                LazyVGrid(columns: cols, alignment: .leading, spacing: 20) {
-                    ForEach(store.albums) { album in albumCell(album) }
-                }.padding(20)
             }
+        } else {
+            // Track the top-most album so returning from an album detail restores the scroll
+            // position (only the main grid; artist-filtered views start at the top).
+            ScrollView {
+                LazyVGrid(columns: cols, alignment: .leading, spacing: 20) {
+                    ForEach(albumsToShow) { album in albumCell(album).id(album.id) }
+                }
+                .scrollTargetLayout()
+                .padding(20)
+            }
+            .scrollPosition(id: artistFilter == nil ? $store.albumScrollID : .constant(nil), anchor: .top)
         }
     }
 
     private func albumCell(_ album: AlbumRow) -> some View {
-        Button {
-            store.filterAlbumID = album.id
-            store.activeView = .allSongs
+        let dev = store.albumDeviceState(album)
+        return Button {
+            store.filterAlbumID = album.id       // stay within Albums/Artists; back button clears it
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 ArtworkThumbnail(path: album.songIDs.first.flatMap { store.song($0)?.path } ?? "",
-                                 seed: album.name, size: 160, corner: 6)
+                                 seed: album.name, size: 160, corner: 6, version: store.artVersion)
+                    .overlay(alignment: .topTrailing) {
+                        if dev.onDevice > 0 { albumDeviceBadge(dev) }
+                    }
                 Text(album.name).font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(theme.text).lineLimit(1)
                 Text("\(album.artist)\(album.year.map { " · \($0)" } ?? "")")
@@ -256,6 +441,32 @@ struct AlbumsGrid: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Replace artwork…") { store.findArtwork(for: album) }
+            Button("Fix track numbers") { store.backfillTrackNumbers(for: album) }
+            Button("Add album to Apple Music") {
+                store.addToAppleMusic(album.songIDs, label: "Adding “\(album.name)” to Apple Music…")
+            }
+            Divider()
+            if dev.onDevice < dev.total {
+                Button("Send album to device") { store.pinAlbum(album, true) }
+            }
+            if dev.onDevice > 0 {
+                Button("Remove album from device", role: .destructive) { store.pinAlbum(album, false) }
+            }
+        }
+    }
+
+    /// Small pill on album art: filled when the whole album is on the device, outline when partial.
+    private func albumDeviceBadge(_ dev: (onDevice: Int, total: Int)) -> some View {
+        let full = dev.onDevice == dev.total
+        return Image(systemName: full ? "ipod" : "ipod")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(full ? theme.accentText : theme.accent)
+            .padding(4)
+            .background(full ? theme.accent : theme.header, in: Capsule())
+            .overlay(Capsule().stroke(theme.accent, lineWidth: full ? 0 : 1))
+            .padding(6)
     }
     private func initials(_ s: String) -> String {
         s.split(separator: " ").prefix(2).compactMap { $0.first }.map(String.init).joined().uppercased()
@@ -270,7 +481,7 @@ struct ArtistsList: View {
             VStack(spacing: 0) {
                 ForEach(store.artists) { artist in
                     HStack(spacing: 12) {
-                        ArtworkThumbnail(path: store.songs.first { $0.artist == artist.name }?.path ?? "",
+                        ArtworkThumbnail(path: store.songs.first { $0.groupArtist == artist.name }?.path ?? "",
                                          seed: artist.name, size: 52, corner: 26)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(artist.name).font(.system(size: 14, weight: .medium)).foregroundStyle(theme.text)
@@ -281,6 +492,8 @@ struct ArtistsList: View {
                         Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.text3)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .onTapGesture { store.filterArtist = artist.name }
                     Divider().overlay(theme.sep)
                 }
             }

@@ -1,6 +1,14 @@
 import OpenSongCore
 
 func registerTitleCleanerTests() {
+    t.test("baseArtist strips featured guests so albums don't split") {
+        try t.expectEqual(TitleCleaner.baseArtist("Pharrell Williams Feat. Alicia Keys"), "Pharrell Williams", "trailing feat")
+        try t.expectEqual(TitleCleaner.baseArtist("Pharrell Williams feat. Justin Timberlake"), "Pharrell Williams", "lowercase feat")
+        try t.expectEqual(TitleCleaner.baseArtist("Calvin Harris ft. Rihanna"), "Calvin Harris", "ft.")
+        try t.expectEqual(TitleCleaner.baseArtist("Eminem (feat. Dido)"), "Eminem", "bracketed feat")
+        try t.expectEqual(TitleCleaner.baseArtist("Pharrell Williams"), "Pharrell Williams", "no feat unchanged")
+        try t.expectEqual(TitleCleaner.baseArtist("Earth, Wind & Fire"), "Earth, Wind & Fire", "ampersand not stripped")
+    }
     t.test("cleans Artist - Title (Official Video)") {
         let r = TitleCleaner.parse("Aphex Twin - Vordhosbn (Official Video)")
         try t.expectEqual(r.artist, "Aphex Twin", "artist")

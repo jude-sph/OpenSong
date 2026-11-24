@@ -16,37 +16,30 @@ public struct VerifyResult: Sendable {
     public var durationOK: Bool
     public var spectralCutoffHz: Double
     public var spectralVerdict: SpectralVerdict
-    public var acoustidScore: Double?     // nil if not checked (no key)
-    public var acoustidMatched: Bool?
     public var overall: MatchConfidence
 }
 
 public struct AcquireSettings: Sendable {
-    public var acoustidAPIKey: String
     public var searchLimit: Int
-    public init(acoustidAPIKey: String = "", searchLimit: Int = 8) {
-        self.acoustidAPIKey = acoustidAPIKey; self.searchLimit = searchLimit
-    }
+    public init(searchLimit: Int = 8) { self.searchLimit = searchLimit }
 }
 
 /// Orchestrates acquisition: search → (user picks) → download → stamp known metadata + art
-/// → import as a `.downloaded` master → verify (duration + spectral + AcoustID if keyed).
+/// → import as a `.downloaded` master → verify (duration + spectral).
 public struct AcquireCoordinator: Sendable {
     public var store: LibraryStore
     public var source: YouTubeSource
     public var importer: Importer
     public var artwork: ArtworkResolver
     public var spectral: SpectralAnalyzer
-    public var fingerprinter: Fingerprinter
-    public var acoustid: AcoustIDClient
     public var probe: AudioProbe
     public var settings: AcquireSettings
 
     public init(store: LibraryStore, source: YouTubeSource, importer: Importer,
-                artwork: ArtworkResolver, spectral: SpectralAnalyzer, fingerprinter: Fingerprinter,
-                acoustid: AcoustIDClient, probe: AudioProbe, settings: AcquireSettings) {
+                artwork: ArtworkResolver, spectral: SpectralAnalyzer,
+                probe: AudioProbe, settings: AcquireSettings) {
         self.store = store; self.source = source; self.importer = importer; self.artwork = artwork
-        self.spectral = spectral; self.fingerprinter = fingerprinter; self.acoustid = acoustid
+        self.spectral = spectral
         self.probe = probe; self.settings = settings
     }
 
@@ -77,9 +70,16 @@ public struct AcquireCoordinator: Sendable {
         try await source.download(chosen.url, to: dl)
 
         let identity = wish.identity
-        let asset = try importer.importOne(dl, identity: identity, source: .downloaded)
+        // A replacement wish carries the asset it supersedes, so the importer overrides its dedup
+        // rules — otherwise a same-titled replacement is silently discarded as "already have it".
+        let asset = try importer.importOne(dl, identity: identity, source: .downloaded,
+                                           replacing: wish.replacesAssetID)
         let masterURL = URL(fileURLWithPath: asset.masterPath)
         if let art { try? artwork.embed(art, into: masterURL) }
+        squareCropEmbeddedArt(masterURL, scratch: downloadDir)
+        // Some uploads carry no usable thumbnail (or the embed step is skipped): guarantee a cover
+        // by pulling the official one from iTunes when the file still has none.
+        await ensureArtwork(masterURL, identity: identity, scratch: downloadDir)
 
         let verify = try await verifyAudio(masterURL, expected: identity)
 
@@ -91,36 +91,52 @@ public struct AcquireCoordinator: Sendable {
         return (asset, verify)
     }
 
+    /// Crop the embedded cover to a centered square (YouTube thumbnails are often 16:9), so all
+    /// library art is square. No-op if the file has no embedded art or crop fails.
+    private func squareCropEmbeddedArt(_ audio: URL, scratch: URL) {
+        let extracted = scratch.appendingPathComponent("\(UUID().uuidString).png")
+        guard (try? artwork.extractEmbedded(from: audio, to: extracted)) == true else { return }
+        defer { try? FileManager.default.removeItem(at: extracted) }
+        let squared = scratch.appendingPathComponent("\(UUID().uuidString)-sq.png")
+        defer { try? FileManager.default.removeItem(at: squared) }
+        guard (try? ArtworkCrop.squareCrop(of: extracted, to: squared, ffmpegPath: artwork.ffmpegPath)) != nil,
+              FileManager.default.fileExists(atPath: squared.path) else { return }
+        try? artwork.embed(squared, into: audio)
+    }
+
+    /// Guarantee the master has a cover: if it already has embedded art, leave it (YouTube
+    /// thumbnails are usually the real cover). Otherwise fetch the official cover from iTunes,
+    /// square-crop it, and embed. Silent no-op on any failure (offline, no match, etc.).
+    private func ensureArtwork(_ audio: URL, identity: TrackIdentity, scratch: URL) async {
+        let probe = scratch.appendingPathComponent("\(UUID().uuidString)-chk.png")
+        if (try? artwork.extractEmbedded(from: audio, to: probe)) == true {
+            try? FileManager.default.removeItem(at: probe); return   // already has art
+        }
+        let album = (identity.album?.isEmpty == false) ? identity.album! : identity.title
+        let finder = ArtworkFinder(http: artwork.http)
+        guard let cands = try? await finder.search(artist: identity.artist, album: album, limit: 1),
+              let best = cands.first else { return }
+        let raw = scratch.appendingPathComponent("\(UUID().uuidString)-it.img")
+        defer { try? FileManager.default.removeItem(at: raw) }
+        guard (try? await artwork.download(best.fullURL, to: raw)) != nil,
+              FileManager.default.fileExists(atPath: raw.path) else { return }
+        let squared = scratch.appendingPathComponent("\(UUID().uuidString)-itsq.png")
+        defer { try? FileManager.default.removeItem(at: squared) }
+        let art = ((try? ArtworkCrop.squareCrop(of: raw, to: squared, ffmpegPath: artwork.ffmpegPath)) != nil
+                   && FileManager.default.fileExists(atPath: squared.path)) ? squared : raw
+        try? artwork.embed(art, into: audio)
+    }
+
     public func verifyAudio(_ url: URL, expected: TrackIdentity) async throws -> VerifyResult {
         let pr = try probe.probe(url)
         let durationOK = expected.durationSec > 0 ? abs(pr.durationSec - expected.durationSec) <= 5 : true
         let cutoff = (try? spectral.cutoffHz(url)) ?? 0
         let verdict = spectral.verdict(cutoffHz: cutoff, bitrateKbps: pr.bitrateKbps)
 
-        var acoustidScore: Double? = nil
-        var acoustidMatched: Bool? = nil
-        if !settings.acoustidAPIKey.isEmpty {
-            if let fp = try? fingerprinter.fingerprint(url),
-               let recs = try? await acoustid.lookup(fp, apiKey: settings.acoustidAPIKey) {
-                let wantArtist = expected.artist.lowercased()
-                let wantTitle = expected.title.lowercased()
-                let best = recs.max(by: { $0.score < $1.score })
-                acoustidScore = best?.score
-                acoustidMatched = recs.contains { r in
-                    r.title.lowercased().contains(wantTitle) || wantTitle.contains(r.title.lowercased())
-                        || r.artist.lowercased().contains(wantArtist)
-                }
-            }
-        }
-
-        // Combine into an overall confidence.
-        let overall: MatchConfidence
-        if let matched = acoustidMatched {
-            overall = (matched && durationOK && verdict.isGood) ? .high : (matched || durationOK ? .medium : .low)
-        } else {
-            overall = (durationOK && verdict.isGood) ? .high : (durationOK ? .medium : .low)
-        }
-        return VerifyResult(durationOK: durationOK, spectralCutoffHz: cutoff, spectralVerdict: verdict,
-                            acoustidScore: acoustidScore, acoustidMatched: acoustidMatched, overall: overall)
+        // Confidence from what we can actually measure: the length matches what the catalogue says,
+        // and the spectrum looks like a genuine encode at the claimed bitrate.
+        let overall: MatchConfidence = (durationOK && verdict.isGood) ? .high : (durationOK ? .medium : .low)
+        return VerifyResult(durationOK: durationOK, spectralCutoffHz: cutoff,
+                            spectralVerdict: verdict, overall: overall)
     }
 }

@@ -63,4 +63,29 @@ func registerLibraryStoreTests() {
                                                      targetBitrateKbps: 256))
         try t.expectEqual(d1, d2, "same device row reused")
     }
+
+    t.test("a playlist remembers where it came from, and its own cover") {
+        let dir = try TestSupport.tempDir("playlist-source")
+        let store = try LibraryStore(dbURL: dir.appendingPathComponent("lib.sqlite"))
+        // Two playlists with the *same name* from different services: the case that made a Spotify
+        // import wear the Apple Music cover of an unrelated playlist.
+        let spotifyID = try store.createPlaylist(name: "Airy", syncToDevice: false,
+                                                 source: .spotify,
+                                                 artworkURL: "https://i.scdn.co/image/abc")
+        let manualID = try store.createPlaylist(name: "Airy", syncToDevice: false)
+        let appleID = try store.createPlaylist(name: "Nostalgia", syncToDevice: false,
+                                               source: .appleMusic)
+
+        let all = try store.allPlaylists()
+        let spotify = all.first { $0.id == spotifyID }
+        try t.expectEqual(spotify?.source, .spotify, "source survives the round trip")
+        try t.expectEqual(spotify?.artworkURL, "https://i.scdn.co/image/abc", "and its cover URL")
+        try t.expectEqual(all.first { $0.id == appleID }?.source, .appleMusic, "Apple Music import")
+        try t.expect(all.first { $0.id == appleID }?.artworkURL == nil,
+                     "Music.app has no URL — its cover is fetched by name, which is safe once the "
+                     + "source is known")
+        // A hand-made playlist claims neither, so it shows a gradient rather than borrowing one.
+        try t.expectEqual(all.first { $0.id == manualID }?.source, .manual, "manual by default")
+        try t.expect(all.first { $0.id == manualID }?.artworkURL == nil, "and no cover")
+    }
 }

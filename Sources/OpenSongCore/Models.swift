@@ -53,22 +53,36 @@ public struct AudioAsset: Codable, Equatable, Sendable {
     public var sizeBytes: Int64
     public var contentHash: String
     public var source: AudioSource
+    public var addedAt: Double = 0   // Unix time this asset was added to the OpenSong library
 
     public init(id: Int64? = nil, identityID: Int64, masterPath: String, format: String,
                 bitrateKbps: Int, sampleRate: Int, sizeBytes: Int64, contentHash: String,
-                source: AudioSource) {
+                source: AudioSource, addedAt: Double = 0) {
         self.id = id; self.identityID = identityID; self.masterPath = masterPath
         self.format = format; self.bitrateKbps = bitrateKbps; self.sampleRate = sampleRate
         self.sizeBytes = sizeBytes; self.contentHash = contentHash; self.source = source
+        self.addedAt = addedAt
     }
+}
+
+/// Where a playlist came from. Decides which cover to show: a name alone is not enough to identify
+/// a playlist, so a Spotify import called "Airy" was picking up the Apple Music cover of a different
+/// playlist that happened to share the name.
+public enum PlaylistSource: String, Codable, Sendable {
+    case manual, appleMusic, spotify, youtube, device
 }
 
 public struct Playlist: Codable, Equatable, Sendable {
     public var id: Int64?
     public var name: String
     public var syncToDevice: Bool
-    public init(id: Int64? = nil, name: String, syncToDevice: Bool = false) {
+    public var source: PlaylistSource
+    /// The cover published by the source, when it has one (Spotify supplies a URL).
+    public var artworkURL: String?
+    public init(id: Int64? = nil, name: String, syncToDevice: Bool = false,
+                source: PlaylistSource = .manual, artworkURL: String? = nil) {
         self.id = id; self.name = name; self.syncToDevice = syncToDevice
+        self.source = source; self.artworkURL = artworkURL
     }
 }
 
@@ -82,7 +96,7 @@ public struct PlaylistItem: Codable, Equatable, Sendable {
     }
 }
 
-public enum WishSource: String, Codable, Sendable { case custom, appleMusic }
+public enum WishSource: String, Codable, Sendable { case custom, appleMusic, spotify }
 public enum WishState: String, Codable, Sendable { case wishlist, matching, downloaded }
 
 /// A track the user wants to acquire (Phase 2). Identity is known up front; acquisition
@@ -92,6 +106,8 @@ public struct WishItem: Codable, Equatable, Sendable {
     public var title: String
     public var artist: String
     public var album: String?
+    public var trackNumber: Int?
+    public var discNumber: Int?
     public var durationSec: Double?
     public var source: WishSource
     public var state: WishState
@@ -100,17 +116,28 @@ public struct WishItem: Codable, Equatable, Sendable {
     /// When set, this wish belongs to a wishlist "playlist" group (e.g. an Apple Music
     /// playlist) that OpenSong recreates once all its tracks are downloaded.
     public var playlistName: String?
+    /// When set, this wish exists to *replace* a track already in the library — the user found a
+    /// problem with that file and wants a different version. The old asset stays playable until a
+    /// replacement is downloaded, then it is discarded and everything pointing at it (playlists,
+    /// the pin that puts it on the device) moves to the new one.
+    public var replacesAssetID: Int64?
     public init(id: Int64? = nil, title: String, artist: String, album: String? = nil,
+                trackNumber: Int? = nil, discNumber: Int? = nil,
                 durationSec: Double? = nil, source: WishSource = .custom,
                 state: WishState = .wishlist, chosenURL: String? = nil, assetID: Int64? = nil,
-                playlistName: String? = nil) {
+                playlistName: String? = nil, replacesAssetID: Int64? = nil) {
         self.id = id; self.title = title; self.artist = artist; self.album = album
+        self.trackNumber = trackNumber; self.discNumber = discNumber
         self.durationSec = durationSec; self.source = source; self.state = state
         self.chosenURL = chosenURL; self.assetID = assetID; self.playlistName = playlistName
+        self.replacesAssetID = replacesAssetID
     }
+    /// Whether this wish is a replacement for an existing library track.
+    public var isReplacement: Bool { replacesAssetID != nil }
     /// The identity this wish resolves to (for search + metadata stamping).
     public var identity: TrackIdentity {
         TrackIdentity(title: title, artist: artist, albumArtist: artist, album: album,
+                      trackNumber: trackNumber, discNumber: discNumber,
                       durationSec: durationSec ?? 0,
                       provenance: source == .appleMusic ? .appleMusic : .userEdited)
     }

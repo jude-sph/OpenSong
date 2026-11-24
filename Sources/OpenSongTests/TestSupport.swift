@@ -12,6 +12,26 @@ enum TestSupport {
         func get(_ url: URL) async throws -> Data { data }
     }
 
+    /// Replies with queued responses in order, and records what was asked for — enough to test a
+    /// call that spans more than one request, like fetching a playlist and then its items.
+    final class ScriptedHTTPClient: HTTPClient, @unchecked Sendable {
+        private let lock = NSLock()
+        private var queue: [Data]
+        private(set) var requested: [String] = []
+
+        init(_ responses: [String]) { queue = responses.map { Data($0.utf8) } }
+
+        func get(_ url: URL) async throws -> Data { next(url) }
+
+        /// Synchronous so the lock isn't held across a suspension point.
+        private func next(_ url: URL) -> Data {
+            lock.lock(); defer { lock.unlock() }
+            requested.append(url.absoluteString)
+            return queue.isEmpty ? Data("{}".utf8) : queue.removeFirst()
+        }
+        func urls() -> [String] { lock.lock(); defer { lock.unlock() }; return requested }
+    }
+
     /// A fresh unique temp directory (caller may clean up; OS clears /tmp anyway).
     static func tempDir(_ label: String = "opensong") throws -> URL {
         let base = URL(fileURLWithPath: NSTemporaryDirectory())

@@ -36,7 +36,8 @@ extension AppStore {
                                    masterPath: "~/Music/OpenSong Library/\(s.artist)/\(s.album)/\(s.title).\(s.fmt)",
                                    format: s.fmt, bitrateKbps: s.kbps, sampleRate: 44100,
                                    sizeBytes: Int64(Double(s.kbps) * 1000 / 8 * s.dur),
-                                   contentHash: "sample-\(i)", source: .importedLoose)
+                                   contentHash: "sample-\(i)", source: .importedLoose,
+                                   addedAt: Date().timeIntervalSince1970 - Double(i) * 3 * 86_400)
             let assetID = try store.insertAsset(asset)
             idsByTitle[s.title] = assetID
         }

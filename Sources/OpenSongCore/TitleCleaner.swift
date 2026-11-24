@@ -45,4 +45,18 @@ public enum TitleCleaner {
         s.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
     }
+
+    /// The album/primary artist: strips a trailing "feat./ft./featuring …" (bracketed or not) so
+    /// tracks crediting different guests stay grouped under one artist/album. Preserves original
+    /// casing/spacing otherwise; returns the input unchanged if stripping would leave it empty.
+    public static func baseArtist(_ s: String) -> String {
+        var x = s.replacingOccurrences(
+            of: #"[\(\[]\s*(feat|ft|featuring)\.?\s[^\)\]]*[\)\]]"#, with: "",
+            options: [.regularExpression, .caseInsensitive])
+        x = x.replacingOccurrences(
+            of: #"\s+(feat|ft|featuring)\.?\s.*$"#, with: "",
+            options: [.regularExpression, .caseInsensitive])
+        let trimmed = collapseSpaces(x)
+        return trimmed.isEmpty ? s : trimmed
+    }
 }

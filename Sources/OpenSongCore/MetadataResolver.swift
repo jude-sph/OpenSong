@@ -15,6 +15,20 @@ public struct CatalogMatch: Sendable, Equatable {
 
 public protocol HTTPClient: Sendable {
     func get(_ url: URL) async throws -> Data
+    /// Send an arbitrary request (needed for POST + auth headers, e.g. the Spotify token/API).
+    func send(_ request: URLRequest) async throws -> Data
+}
+
+public extension HTTPClient {
+    /// Default: fall back to a plain GET of the request's URL (test stubs that only implement
+    /// `get` keep working). URLSessionHTTPClient overrides this to honor method/headers/body.
+    func send(_ request: URLRequest) async throws -> Data {
+        guard let url = request.url else {
+            throw NSError(domain: "HTTPClient", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Request has no URL"])
+        }
+        return try await get(url)
+    }
 }
 
 public struct URLSessionHTTPClient: HTTPClient {
@@ -29,10 +43,14 @@ public struct URLSessionHTTPClient: HTTPClient {
         session = URLSession(configuration: config)
     }
     public func get(_ url: URL) async throws -> Data {
-        let (data, response) = try await session.data(from: url)
+        try await send(URLRequest(url: url))
+    }
+    public func send(_ request: URLRequest) async throws -> Data {
+        let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            let body = String(decoding: data, as: UTF8.self)
             throw NSError(domain: "HTTPClient", code: http.statusCode,
-                          userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"])
+                          userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode): \(body)"])
         }
         return data
     }

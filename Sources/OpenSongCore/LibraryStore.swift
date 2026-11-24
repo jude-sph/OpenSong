@@ -38,12 +38,16 @@ public struct DeviceTrackRow: Codable, Equatable, Sendable, FetchableRecord, Mut
     public var transcodedBitrate: Int
     public var contentHash: String
     public var sizeBytes: Int64
+    /// How this copy was produced (`TranscodeSettings.deviceRecipe`). When the recipe changes —
+    /// a different bitrate, or a fix to how cover art is written — the file is stale even though
+    /// the master hasn't moved, and the next sync rebuilds it.
+    public var recipe: String
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
     public init(id: Int64? = nil, deviceUUID: String, relativePath: String, assetID: Int64,
-                transcodedBitrate: Int, contentHash: String, sizeBytes: Int64) {
+                transcodedBitrate: Int, contentHash: String, sizeBytes: Int64, recipe: String = "") {
         self.id = id; self.deviceUUID = deviceUUID; self.relativePath = relativePath
         self.assetID = assetID; self.transcodedBitrate = transcodedBitrate
-        self.contentHash = contentHash; self.sizeBytes = sizeBytes
+        self.contentHash = contentHash; self.sizeBytes = sizeBytes; self.recipe = recipe
     }
 }
 
@@ -139,6 +143,49 @@ public final class LibraryStore: @unchecked Sendable {
         m.registerMigration("v4-wish-playlist") { db in
             try db.alter(table: "wish_item") { t in
                 t.add(column: "playlistName", .text)
+            }
+        }
+        m.registerMigration("v5-asset-addedAt") { db in
+            try db.alter(table: "audio_asset") { t in
+                t.add(column: "addedAt", .double).notNull().defaults(to: 0)
+            }
+            // Backfill existing rows from the master file's creation date (fallback: now), so
+            // "Date Added" sort is meaningful for a library that predates this column.
+            let now = Date().timeIntervalSince1970
+            for row in try Row.fetchAll(db, sql: "SELECT id, masterPath FROM audio_asset") {
+                let id: Int64 = row["id"]
+                let path = ((row["masterPath"] as String) as NSString).expandingTildeInPath
+                let created = (try? FileManager.default.attributesOfItem(atPath: path)[.creationDate] as? Date)
+                    .flatMap { $0 }?.timeIntervalSince1970 ?? now
+                try db.execute(sql: "UPDATE audio_asset SET addedAt = ? WHERE id = ?", arguments: [created, id])
+            }
+        }
+        m.registerMigration("v6-wish-track-disc") { db in
+            try db.alter(table: "wish_item") { t in
+                t.add(column: "trackNumber", .integer)
+                t.add(column: "discNumber", .integer)
+            }
+        }
+        // How the device copy was produced (format/bitrate/loudness/artwork). Rows written before
+        // this get "", which never matches the current recipe — so the first sync after an upgrade
+        // rebuilds them, which is exactly what a recipe change is supposed to do.
+        m.registerMigration("v7-device-track-recipe") { db in
+            try db.alter(table: "device_track") { t in
+                t.add(column: "recipe", .text).notNull().defaults(to: "")
+            }
+        }
+        // Where a playlist came from, and its own cover. Existing rows get "manual", which shows a
+        // gradient rather than borrowing a same-named cover from Music.app.
+        m.registerMigration("v9-playlist-source") { db in
+            try db.alter(table: "playlist") { t in
+                t.add(column: "source", .text).notNull().defaults(to: PlaylistSource.manual.rawValue)
+                t.add(column: "artworkURL", .text)
+            }
+        }
+        // A wish that exists to replace a track already in the library.
+        m.registerMigration("v8-wish-replaces") { db in
+            try db.alter(table: "wish_item") { t in
+                t.add(column: "replacesAssetID", .integer)
             }
         }
         return m
@@ -262,9 +309,12 @@ public final class LibraryStore: @unchecked Sendable {
     // MARK: playlists
 
     @discardableResult
-    public func createPlaylist(name: String, syncToDevice: Bool) throws -> Int64 {
+    public func createPlaylist(name: String, syncToDevice: Bool,
+                               source: PlaylistSource = .manual,
+                               artworkURL: String? = nil) throws -> Int64 {
         try dbQueue.write { db in
-            var p = Playlist(name: name, syncToDevice: syncToDevice)
+            var p = Playlist(name: name, syncToDevice: syncToDevice,
+                             source: source, artworkURL: artworkURL)
             try p.insert(db); return p.id!
         }
     }
@@ -298,6 +348,20 @@ public final class LibraryStore: @unchecked Sendable {
 
     public func allPlaylists() throws -> [Playlist] {
         try dbQueue.read { db in try Playlist.order(Column("name")).fetchAll(db) }
+    }
+
+    /// Record where a playlist came from (used to backfill rows that predate the column).
+    public func setPlaylistSource(_ id: Int64, _ source: PlaylistSource,
+                                  artworkURL: String? = nil) throws {
+        try dbQueue.write { db in
+            if let url = artworkURL {
+                try db.execute(sql: "UPDATE playlist SET source = ?, artworkURL = ? WHERE id = ?",
+                               arguments: [source.rawValue, url, id])
+            } else {
+                try db.execute(sql: "UPDATE playlist SET source = ? WHERE id = ?",
+                               arguments: [source.rawValue, id])
+            }
+        }
     }
 
     public func setPlaylistSync(_ id: Int64, _ sync: Bool) throws {
@@ -343,6 +407,18 @@ public final class LibraryStore: @unchecked Sendable {
         }
     }
 
+    /// The device most of the managed-track rows belong to. Lets the library keep showing what's on
+    /// the device when none is plugged in — including on an install that has never yet seen it
+    /// connected, where there's no remembered id to fall back on.
+    public func primaryDeviceUUID() throws -> String? {
+        try dbQueue.read { db in
+            try String.fetchOne(db, sql: """
+                SELECT deviceUUID FROM device_track GROUP BY deviceUUID
+                ORDER BY COUNT(*) DESC LIMIT 1
+                """)
+        }
+    }
+
     public func setDeviceTrack(_ row: DeviceTrackRow) throws {
         try dbQueue.write { db in
             try db.execute(sql: "DELETE FROM device_track WHERE deviceUUID = ? AND relativePath = ?",
@@ -356,6 +432,127 @@ public final class LibraryStore: @unchecked Sendable {
         try dbQueue.write { db in
             try db.execute(sql: "DELETE FROM device_track WHERE deviceUUID = ? AND relativePath = ?",
                            arguments: [uuid, relativePath])
+        }
+    }
+
+    /// Re-key managed-track rows from a stale device id onto `uuid` when the file they describe is
+    /// actually present on this device. Needed because FAT32 volume UUIDs aren't stable (see
+    /// `DeviceIdentity`): without it, a remount under a new UUID orphans every row, the library
+    /// shows nothing as on-device, and the next sync recopies the whole device. Returns the number
+    /// of rows adopted.
+    @discardableResult
+    public func adoptDeviceTracks(uuid: String, presentPaths: Set<String>) throws -> Int {
+        guard !presentPaths.isEmpty else { return 0 }
+        // Compare in NFC: the device hands back decomposed names (see `DeviceManager`), and older
+        // rows may have been written either way.
+        let present = Set(presentPaths.map { $0.precomposedStringWithCanonicalMapping })
+        return try dbQueue.write { db in
+            // Bring this device's own rows into NFC first, so the duplicate check below is exact.
+            for var row in try DeviceTrackRow.filter(Column("deviceUUID") == uuid).fetchAll(db) {
+                let nfc = row.relativePath.precomposedStringWithCanonicalMapping
+                guard nfc != row.relativePath else { continue }
+                row.relativePath = nfc
+                try? row.update(db)
+            }
+            let stale = try DeviceTrackRow.filter(Column("deviceUUID") != uuid).fetchAll(db)
+            var adopted = 0
+            for var row in stale {
+                let path = row.relativePath.precomposedStringWithCanonicalMapping
+                guard present.contains(path) else { continue }
+                // A row already keyed to this device wins; the stale duplicate is dropped.
+                let claimed = try DeviceTrackRow
+                    .filter(Column("deviceUUID") == uuid && Column("relativePath") == path)
+                    .fetchCount(db) > 0
+                if let id = row.id { _ = try DeviceTrackRow.deleteOne(db, key: id) }
+                guard !claimed else { continue }
+                row.id = nil; row.deviceUUID = uuid; row.relativePath = path
+                try row.insert(db)
+                adopted += 1
+            }
+            return adopted
+        }
+    }
+
+    /// Mark managed tracks stale so the next sync re-pushes them. Used when the *way* device files
+    /// are produced changes (e.g. cover art is now embedded) and the master itself hasn't. Clearing
+    /// the stored content hash is enough: `SyncEngine.plan` then treats the file as out of date.
+    public static let staleHash = "needs-refresh"
+
+    @discardableResult
+    public func invalidateDeviceTracks(uuid: String, assetIDs: Set<Int64>) throws -> Int {
+        guard !assetIDs.isEmpty else { return 0 }
+        return try dbQueue.write { db in
+            var touched = 0
+            for var row in try DeviceTrackRow.filter(Column("deviceUUID") == uuid).fetchAll(db)
+            where assetIDs.contains(row.assetID) && row.contentHash != Self.staleHash {
+                row.contentHash = Self.staleHash
+                try row.update(db)
+                touched += 1
+            }
+            return touched
+        }
+    }
+
+    /// What a replacement changed, for the message shown afterwards.
+    public struct ReplacementResult: Sendable, Equatable {
+        public var playlists = 0        // playlist entries moved to the new file
+        public var wasPinned = false    // the old file was set to go to the device
+        public var deviceRows = 0       // device copies marked stale, so the next sync re-sends
+        public init() {}
+    }
+
+    /// Swap a new asset in for an old one everywhere the library refers to it, then delete the old
+    /// row. The caller trashes the old file — the store never touches the filesystem.
+    ///
+    /// Everything that made the old file *reachable* has to move, or a replacement would silently
+    /// drop the track out of its playlists and off the device: playlist entries, the pin that marks
+    /// it for syncing, and the device rows (cleared so the next sync re-sends rather than trusting a
+    /// hash that now describes a file that no longer exists).
+    @discardableResult
+    public func replaceAsset(old oldID: Int64, with newID: Int64) throws -> ReplacementResult {
+        guard oldID != newID else { return ReplacementResult() }
+        return try dbQueue.write { db in
+            var result = ReplacementResult()
+
+            // Playlist entries move across, keeping their position — unless the new asset is
+            // already in that playlist, in which case the old entry just goes.
+            let rows = try PlaylistItem.filter(Column("assetID") == oldID).fetchAll(db)
+            for var row in rows {
+                let clash = try PlaylistItem
+                    .filter(Column("playlistID") == row.playlistID && Column("assetID") == newID)
+                    .fetchCount(db) > 0
+                if clash {
+                    try row.delete(db)
+                } else {
+                    row.assetID = newID
+                    try row.update(db)
+                    result.playlists += 1
+                }
+            }
+
+            // The pin is what puts a track on the device, so it has to follow the replacement.
+            // `pinned_asset` has no record type of its own — it is a bare join table.
+            let pinned = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM pinned_asset WHERE assetID = ?", arguments: [oldID]) ?? 0
+            if pinned > 0 {
+                result.wasPinned = true
+                try db.execute(sql: "DELETE FROM pinned_asset WHERE assetID = ?", arguments: [oldID])
+                try db.execute(sql: "INSERT OR IGNORE INTO pinned_asset(assetID) VALUES (?)",
+                               arguments: [newID])
+            }
+
+            // Any device copy of the old file is now wrong. Clearing the hash marks it stale; the
+            // device path comes from the identity, so a same-titled replacement overwrites the file
+            // in place and a differently-titled one is removed and re-added.
+            for var row in try DeviceTrackRow.filter(Column("assetID") == oldID).fetchAll(db) {
+                row.assetID = newID
+                row.contentHash = Self.staleHash
+                try row.update(db)
+                result.deviceRows += 1
+            }
+
+            try AudioAsset.deleteOne(db, key: oldID)
+            return result
         }
     }
 

@@ -47,7 +47,7 @@ struct AppleMusicDetailView: View {
             Button { store.activeView = .appleMusic } label: {
                 Image(systemName: "chevron.left").font(.system(size: 13))
             }.buttonStyle(.plain).foregroundStyle(theme.text2)
-            AppleMusicArt(name: col.name, size: 60)
+            AppleMusicArt(name: col.name, kind: col.kind, artist: col.albumArtist, size: 60)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(col.name).font(.system(size: 18, weight: .bold)).foregroundStyle(theme.text).lineLimit(1)

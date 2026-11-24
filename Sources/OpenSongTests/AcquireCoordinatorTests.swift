@@ -13,9 +13,7 @@ private func makeCoordinator(_ source: YouTubeSource, libraryRoot: URL) throws -
         store: store, source: source, importer: importer,
         artwork: ArtworkResolver(ffmpegPath: TestSupport.ffmpeg),
         spectral: SpectralAnalyzer(ffmpegPath: TestSupport.ffmpeg),
-        fingerprinter: Fingerprinter(fpcalcPath: "/opt/homebrew/bin/fpcalc"),
-        acoustid: AcoustIDClient(http: TestSupport.StubHTTPClient(data: Data("{}".utf8))),
-        probe: probe, settings: AcquireSettings(acoustidAPIKey: "", searchLimit: 5))
+        probe: probe, settings: AcquireSettings(searchLimit: 5))
     return (coord, store)
 }
 
@@ -61,8 +59,7 @@ func registerAcquireCoordinatorTests() {
         let doneWish = try store.allWishes().first { $0.id == wishID }
         try t.expectEqual(doneWish?.state, .downloaded, "wish -> downloaded")
         try t.expectEqual(doneWish?.assetID, asset.id, "wish linked to asset")
-        // Verify populated (duration matches; no AcoustID key so acoustid nil).
+        // Verify populated (duration matches).
         try t.expect(verify.durationOK, "duration verified")
-        try t.expect(verify.acoustidScore == nil, "acoustid skipped without key")
     }
 }

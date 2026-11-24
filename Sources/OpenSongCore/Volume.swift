@@ -57,13 +57,43 @@ public enum DeviceDetector {
         if let walkman = vols.first(where: { $0.lastPathComponent == "WALKMAN" }) {
             return makeVolume(walkman)
         }
-        // Otherwise the first volume that has a MUSIC folder.
+        // Otherwise the first volume that has a MUSIC folder — but never an iPod (it has an
+        // iPod_Control folder and is handled separately).
         for v in vols {
             var isDir: ObjCBool = false
             let music = v.appendingPathComponent("MUSIC")
-            if fm.fileExists(atPath: music.path, isDirectory: &isDir), isDir.boolValue {
+            let ipod = v.appendingPathComponent("iPod_Control")
+            if fm.fileExists(atPath: music.path, isDirectory: &isDir), isDir.boolValue,
+               !fm.fileExists(atPath: ipod.path) {
                 return makeVolume(v)
             }
+        }
+        return nil
+    }
+}
+
+/// A connected iPod (mass-storage; identified by the `iPod_Control` folder). The Shuffle
+/// stores music under `iPod_Control/Music` and playlists in a binary `iTunesSD`, so it's
+/// handled by `ShuffleSyncEngine` rather than the Walkman path.
+public struct ShuffleDevice: Sendable, Equatable {
+    public let mountPoint: URL
+    public let uuid: String
+    public let name: String
+    public init(mountPoint: URL, uuid: String, name: String) {
+        self.mountPoint = mountPoint; self.uuid = uuid; self.name = name
+    }
+    public var layout: ShuffleLayout { ShuffleLayout(mountPoint: mountPoint) }
+}
+
+public extension DeviceDetector {
+    /// First mounted volume that looks like an iPod (contains `iPod_Control`).
+    static func connectedShuffle() -> ShuffleDevice? {
+        let fm = FileManager.default
+        guard let vols = try? fm.contentsOfDirectory(at: URL(fileURLWithPath: "/Volumes"),
+                                                     includingPropertiesForKeys: nil) else { return nil }
+        for v in vols where fm.fileExists(atPath: v.appendingPathComponent("iPod_Control").path) {
+            let uuid = ((try? v.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString) ?? nil) ?? ""
+            return ShuffleDevice(mountPoint: v, uuid: uuid, name: v.lastPathComponent)
         }
         return nil
     }

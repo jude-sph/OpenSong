@@ -131,24 +131,46 @@ public struct Importer: Sendable {
 
     /// Import a single already-downloaded file with a known identity (Phase 2 acquisition).
     @discardableResult
-    public func importOne(_ url: URL, identity: TrackIdentity, source: AudioSource) throws -> AudioAsset {
+    /// Import a single file. `replacing` names an asset the user has explicitly asked to replace,
+    /// which overrides the deduplication rules below — see `importAll`.
+    public func importOne(_ url: URL, identity: TrackIdentity, source: AudioSource,
+                          replacing: Int64? = nil) throws -> AudioAsset {
         let pr = try probe.probe(url)
-        return try importAll([(url, pr, identity)], source: source)[0]
+        return try importAll([(url, pr, identity)], source: source, replacing: replacing)[0]
     }
 
     // MARK: shared internals
 
     private func importAll(_ inputs: [(URL, ProbeResult, TrackIdentity)],
-                           source: AudioSource) throws -> [AudioAsset] {
+                           source: AudioSource, replacing: Int64? = nil) throws -> [AudioAsset] {
         var results: [AudioAsset] = []
         for (url, pr, chosen) in inputs {
             let hash = try Self.sha256(of: url)
 
-            // Exact-duplicate: same bytes already imported.
-            if let existing = try store.findAssetByHash(hash) { results.append(existing); continue }
+            // An explicit replacement overrides both dedup rules below. The user has told us the
+            // file they have is wrong, so "we already have this one" and "the copy we have is a
+            // higher bitrate" are not reasons to keep it — a bad rip at 320k is still a bad rip.
+            // Same track: the new file takes over the master in place, so the asset keeps its id and
+            // everything pointing at it (playlists, album position, the device pin) is undisturbed.
+            if let replacing, let existing = try store.asset(replacing),
+               let ident = try store.findIdentity(title: chosen.title, artist: chosen.artist,
+                                                  album: chosen.album),
+               let identID = ident.id, existing.identityID == identID {
+                results.append(try placeAndIndex(url: url, pr: pr, chosen: chosen,
+                                                 identityID: identID, hash: hash,
+                                                 source: source, replacing: existing))
+                continue
+            }
+            // A replacement under a different title becomes its own asset; the caller moves
+            // playlists and pins across and discards the old one.
+            if replacing == nil {
+                // Exact-duplicate: same bytes already imported.
+                if let existing = try store.findAssetByHash(hash) { results.append(existing); continue }
+            }
 
             // Identity-level dedup: keep the higher-bitrate master, never downgrade.
-            if let ident = try store.findIdentity(title: chosen.title, artist: chosen.artist, album: chosen.album),
+            if replacing == nil,
+               let ident = try store.findIdentity(title: chosen.title, artist: chosen.artist, album: chosen.album),
                let identID = ident.id,
                let existingAsset = try store.assetsForIdentity(identID).first {
                 if existingAsset.bitrateKbps >= pr.bitrateKbps {
@@ -184,15 +206,19 @@ public struct Importer: Sendable {
             try FileManager.default.removeItem(at: dest)
         }
         try FileManager.default.copyItem(at: url, to: dest)
-        // Backfill tags (mp3 supported; other formats best-effort).
-        if ext == "mp3" { try? tagger.writeTags(dest, chosen) }
+        // Stamp the authoritative identity (title/artist/album/track/disc/…) into the file tags.
+        // ffmpeg handles these containers; other formats are left as-is (best-effort).
+        if ["mp3", "m4a", "m4b", "flac", "aac"].contains(ext.lowercased()) {
+            try? tagger.writeTags(dest, chosen)
+        }
         var sizeBytes: Int64 = 0
         if let attrs = try? FileManager.default.attributesOfItem(atPath: dest.path),
            let s = attrs[.size] as? Int { sizeBytes = Int64(s) }
         var asset = AudioAsset(id: existing?.id, identityID: identityID, masterPath: dest.path,
                                format: pr.codec, bitrateKbps: pr.bitrateKbps,
                                sampleRate: pr.sampleRate, sizeBytes: sizeBytes,
-                               contentHash: hash, source: source)
+                               contentHash: hash, source: source,
+                               addedAt: existing?.addedAt ?? Date().timeIntervalSince1970)
         if let existing, existing.masterPath != dest.path {
             try? FileManager.default.removeItem(atPath: existing.masterPath)
         }
@@ -224,6 +250,11 @@ public struct Importer: Sendable {
         }
         return files.sorted(by: { $0.path < $1.path })
     }
+
+    /// Content hash of a master file. Recorded on the asset at import and re-taken whenever
+    /// OpenSong rewrites the file (tags, artwork) — it's the "has this changed?" signal the device
+    /// diff relies on, so a stale hash means edits never reach the device.
+    public static func contentHash(of url: URL) throws -> String { try sha256(of: url) }
 
     static func sha256(of url: URL) throws -> String {
         let data = try Data(contentsOf: url)
