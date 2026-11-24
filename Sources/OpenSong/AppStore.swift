@@ -264,7 +264,7 @@ final class AppStore {
             let pairs = try store.allAssetsWithIdentity()
             let managed = (try? store.deviceTracks(currentUUID)) ?? []
             let onDeviceIDs = Set(managed.map { $0.assetID })
-            songs = pairs.compactMap { (asset, ident) in
+            var rows: [SongRow] = pairs.compactMap { (asset, ident) in
                 guard let id = asset.id else { return nil }
                 return SongRow(id: id, identityID: asset.identityID, title: ident.title,
                                artist: ident.artist, album: effectiveAlbum(ident),
@@ -273,12 +273,15 @@ final class AppStore {
                                track: ident.trackNumber, genre: ident.genre, year: ident.year,
                                path: asset.masterPath, sizeBytes: asset.sizeBytes, addedAt: asset.addedAt)
             }.sorted { ($0.artist, $0.album, $0.track ?? 0) < ($1.artist, $1.album, $1.track ?? 0) }
-            applyAlbumArtists()
+            Self.applyAlbumArtists(&rows)
+            // One assignment (one change notification), then rebuild the lookups derived from it.
+            songs = rows
+            rebuildSongIndexes()
 
+            let playlistSongs = try store.allPlaylistAssetIDs()
             playlists = try store.allPlaylists().map { pl in
-                let items = (try? store.playlistItems(pl.id!)) ?? []
-                return PlaylistRow(id: pl.id!, name: pl.name, syncToDevice: pl.syncToDevice,
-                                   songIDs: items.compactMap { $0.id },
+                PlaylistRow(id: pl.id!, name: pl.name, syncToDevice: pl.syncToDevice,
+                                   songIDs: playlistSongs[pl.id!] ?? [],
                                    source: pl.source, artworkURL: pl.artworkURL)
             }
             wishItems = try store.allWishes()
@@ -291,7 +294,7 @@ final class AppStore {
     /// Resolve each song's grouping artist. Within one album title, credits that are another
     /// credit plus a collaborator ("Gorillaz & MF DOOM" alongside "Gorillaz") collapse onto the
     /// primary one, so guest features don't shatter the album into single-track fragments.
-    private func applyAlbumArtists() {
+    private static func applyAlbumArtists(_ songs: inout [SongRow]) {
         var creditsByAlbum: [String: [String]] = [:]
         for s in songs where !s.album.trimmingCharacters(in: .whitespaces).isEmpty {
             creditsByAlbum[AppleMusicCompare.normalize(s.album), default: []].append(Self.baseArtist(s.artist))
@@ -306,8 +309,46 @@ final class AppStore {
 
     // MARK: derived collections
 
+    // Lookups and memos derived from `songs`. `songs` is only ever assigned in `reload()`, which
+    // calls `rebuildSongIndexes()`; the memos are keyed on `songsVersion` plus their other inputs,
+    // so views can read `filteredSongs` / `albums` as often as they like without recomputing.
+    @ObservationIgnored private var songIndex: [Int64: Int] = [:]
+    @ObservationIgnored private var songsVersion = 0
+    @ObservationIgnored private let ownershipIndex = OwnershipIndex()
+    @ObservationIgnored private var filteredMemo: (key: FilteredKey, rows: [SongRow])?
+    @ObservationIgnored private var albumsMemo: (key: AlbumsKey, rows: [AlbumRow])?
+    private struct FilteredKey: Equatable { var version: Int; var albumID: String?; var query: String; var sort: SongSort }
+    private struct AlbumsKey: Equatable { var version: Int; var query: String; var sort: AlbumSort }
+
+    private func rebuildSongIndexes() {
+        songsVersion += 1
+        songIndex = Dictionary(songs.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
+        ownershipIndex.rebuild(songs.map {
+            ($0.id, AppleMusicCompare.LibraryTrack(title: $0.title, artist: $0.artist,
+                                                   album: $0.album, durationSec: $0.durationSec))
+        })
+    }
+
+    private func norm(_ s: String) -> String { ownershipIndex.normalize(s) }
+
+    /// The library song matching a track from another service, by the same rule as
+    /// `AppleMusicCompare.matches`: title + artist equal (normalised), corroborated by album or by
+    /// duration (±4s). A dictionary lookup instead of a scan of the whole library.
+    private func ownedSongID(name: String, artist: String, album: String, durationSec: Double) -> Int64? {
+        ownershipIndex.match(name: name, artist: artist, album: album, durationSec: durationSec)
+    }
+
     var filteredSongs: [SongRow] {
-        var rows = songs
+        let all = songs   // always read: keeps the observing view subscribed even on a memo hit
+        let key = FilteredKey(version: songsVersion, albumID: filterAlbumID, query: searchQuery, sort: songSort)
+        if let m = filteredMemo, m.key == key { return m.rows }
+        let rows = computeFilteredSongs(all)
+        filteredMemo = (key, rows)
+        return rows
+    }
+
+    private func computeFilteredSongs(_ all: [SongRow]) -> [SongRow] {
+        var rows = all
         if let albumID = filterAlbumID {
             rows = rows.filter { "\($0.groupArtist)␟\($0.album)" == albumID }
         }
@@ -354,6 +395,15 @@ final class AppStore {
     }
 
     var albums: [AlbumRow] {
+        let all = songs
+        let key = AlbumsKey(version: songsVersion, query: searchQuery, sort: albumSort)
+        if let m = albumsMemo, m.key == key { return m.rows }
+        let rows = computeAlbums(all)
+        albumsMemo = (key, rows)
+        return rows
+    }
+
+    private func computeAlbums(_ songs: [SongRow]) -> [AlbumRow] {
         var map: [String: AlbumRow] = [:]
         for s in songs {
             let base = s.groupArtist
@@ -374,12 +424,15 @@ final class AppStore {
         case .name:
             return rows.sorted { ($0.artist, $0.name) < ($1.artist, $1.name) }
         case .recent:
-            // Most-recently-added album first (by the newest track it contains).
-            return rows.sorted { albumAddedAt($0) > albumAddedAt($1) }
+            // Most-recently-added album first (by the newest track it contains). Keys are worked
+            // out once per album, not once per comparison.
+            let added = Dictionary(rows.map { ($0.id, albumAddedAt($0)) }, uniquingKeysWith: { a, _ in a })
+            return rows.sorted { (added[$0.id] ?? 0) > (added[$1.id] ?? 0) }
         case .device:
             // Fully on the device first, then partially synced, then not on the device at all.
+            let rank = Dictionary(rows.map { ($0.id, deviceRank($0)) }, uniquingKeysWith: { a, _ in a })
             return rows.sorted {
-                let (l, r) = (deviceRank($0), deviceRank($1))
+                let (l, r) = (rank[$0.id] ?? 0, rank[$1.id] ?? 0)
                 return l == r ? ($0.artist, $0.name) < ($1.artist, $1.name) : l > r
             }
         }
@@ -428,7 +481,11 @@ final class AppStore {
         return rows
     }
 
-    func song(_ id: Int64) -> SongRow? { songs.first { $0.id == id } }
+    func song(_ id: Int64) -> SongRow? {
+        let all = songs
+        guard let i = songIndex[id], i < all.count, all[i].id == id else { return nil }
+        return all[i]
+    }
 
     var libraryTotalsLabel: String {
         let total = songs.reduce(Int64(0)) { $0 + $1.sizeBytes }
@@ -599,9 +656,9 @@ final class AppStore {
         }()
         if let plan {
             syncPreview = SyncPreview(
-                willAdd: plan.toAdd.compactMap { asset in songs.first { $0.id == asset.id } },
+                willAdd: plan.toAdd.compactMap { $0.id.flatMap(song) },
                 willRemove: plan.toRemove,
-                upToDate: plan.upToDate.compactMap { asset in songs.first { $0.id == asset.id } },
+                upToDate: plan.upToDate.compactMap { $0.id.flatMap(song) },
                 projectedUsedBytes: plan.projectedUsedBytes)
             return
         }
@@ -1000,8 +1057,13 @@ final class AppStore {
         buildSyncPreview()
     }
 
-    func pin(_ songID: Int64, _ pinned: Bool) {
-        try? store?.pin(assetID: songID, pinned)
+    func pin(_ songID: Int64, _ pinned: Bool) { pin([songID], pinned) }
+
+    /// Pin or unpin several songs, then rebuild the sync preview (which walks the device) and
+    /// reload once — not once per song.
+    func pin(_ songIDs: [Int64], _ pinned: Bool) {
+        guard let store, !songIDs.isEmpty else { return }
+        for id in songIDs { try? store.pin(assetID: id, pinned) }
         buildSyncPreview()
         reload()
     }
@@ -1793,11 +1855,9 @@ final class AppStore {
 
     /// A wish (in the given download state) whose title+artist match, normalized.
     private func hasWish(title: String, artist: String, downloaded: Bool) -> Bool {
-        let nt = AppleMusicCompare.normalize(title), na = AppleMusicCompare.normalize(artist)
+        let nt = norm(title), na = norm(artist)
         return wishItems.contains {
-            ($0.state == .downloaded) == downloaded
-                && AppleMusicCompare.normalize($0.title) == nt
-                && AppleMusicCompare.normalize($0.artist) == na
+            ($0.state == .downloaded) == downloaded && norm($0.title) == nt && norm($0.artist) == na
         }
     }
 
@@ -1848,8 +1908,8 @@ final class AppStore {
     /// Owned = in the library by fuzzy match, OR already downloaded via a wish (authoritative,
     /// even when the fuzzy metadata match fails because the download's duration/album differ).
     func isOwned(_ track: AppleMusicTrack) -> Bool {
-        let lib = songs.map { AppleMusicCompare.LibraryTrack(title: $0.title, artist: $0.artist, album: $0.album, durationSec: $0.durationSec) }
-        if lib.contains(where: { AppleMusicCompare.matches(track, $0) }) { return true }
+        _ = songs
+        if ownedSongID(name: track.name, artist: track.artist, album: track.album, durationSec: track.durationSec) != nil { return true }
         return hasWish(title: track.name, artist: track.artist, downloaded: true)
     }
 
@@ -1988,19 +2048,10 @@ final class AppStore {
 
     /// Library asset ids that match a set of Apple Music tracks, in track order (for seeding).
     private func ownedAssetIDs(_ tracks: [AppleMusicTrack]) -> [Int64] {
-        tracks.compactMap { t in
-            songs.first {
-                AppleMusicCompare.matches(t, AppleMusicCompare.LibraryTrack(title: $0.title, artist: $0.artist, album: $0.album, durationSec: $0.durationSec))
-            }?.id
-        }
+        tracks.compactMap { ownedSongID(name: $0.name, artist: $0.artist, album: $0.album, durationSec: $0.durationSec) }
     }
     private func ownedAssetIDsSpotify(_ tracks: [SpotifyTrack]) -> [Int64] {
-        tracks.compactMap { t in
-            songs.first {
-                AppleMusicCompare.matches(name: t.title, artist: t.artist, album: t.album, durationSec: t.durationSec,
-                                          AppleMusicCompare.LibraryTrack(title: $0.title, artist: $0.artist, album: $0.album, durationSec: $0.durationSec))
-            }?.id
-        }
+        tracks.compactMap { ownedSongID(name: $0.title, artist: $0.artist, album: $0.album, durationSec: $0.durationSec) }
     }
 
     /// Imported playlists (Apple Music / Spotify / YouTube) that are still downloading — grouped
@@ -2240,9 +2291,6 @@ final class AppStore {
         }
     }
 
-    private func libraryTracks() -> [AppleMusicCompare.LibraryTrack] {
-        songs.map { AppleMusicCompare.LibraryTrack(title: $0.title, artist: $0.artist, album: $0.album, durationSec: $0.durationSec) }
-    }
 
     func spotifyOwnership(_ pl: SpotifyPlaylist) -> (owned: Int, total: Int, missing: [SpotifyTrack]) {
         var owned = 0; var missing: [SpotifyTrack] = []
@@ -2251,7 +2299,8 @@ final class AppStore {
     }
 
     func isOwnedSpotify(_ track: SpotifyTrack) -> Bool {
-        if libraryTracks().contains(where: { AppleMusicCompare.matches(name: track.title, artist: track.artist, album: track.album, durationSec: track.durationSec, $0) }) { return true }
+        _ = songs
+        if ownedSongID(name: track.title, artist: track.artist, album: track.album, durationSec: track.durationSec) != nil { return true }
         return hasWish(title: track.title, artist: track.artist, downloaded: true)
     }
     func isPendingSpotify(_ track: SpotifyTrack) -> Bool {

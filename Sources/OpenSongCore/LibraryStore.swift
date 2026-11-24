@@ -212,14 +212,35 @@ public final class LibraryStore: @unchecked Sendable {
 
     public func allAssetsWithIdentity() throws -> [(AudioAsset, TrackIdentity)] {
         try dbQueue.read { db in
+            // Two queries joined in memory, rather than one identity lookup per asset.
             let assets = try AudioAsset.order(Column("id")).fetchAll(db)
-            var result: [(AudioAsset, TrackIdentity)] = []
-            for a in assets {
-                if let ident = try TrackIdentity.filter(key: a.identityID).fetchOne(db) {
-                    result.append((a, ident))
-                }
-            }
-            return result
+            let idents = try Self.identitiesByID(db)
+            return assets.compactMap { a in idents[a.identityID].map { (a, $0) } }
+        }
+    }
+
+    private static func identitiesByID(_ db: Database) throws -> [Int64: TrackIdentity] {
+        var out: [Int64: TrackIdentity] = [:]
+        for i in try TrackIdentity.fetchAll(db) { if let id = i.id { out[id] = i } }
+        return out
+    }
+
+    /// Every identity keyed by id — for callers that would otherwise call `identity(_:)` in a loop.
+    public func allIdentitiesByID() throws -> [Int64: TrackIdentity] {
+        try dbQueue.read { db in try Self.identitiesByID(db) }
+    }
+
+    /// Each playlist's asset ids in playlist order, in one query.
+    public func allPlaylistAssetIDs() throws -> [Int64: [Int64]] {
+        try dbQueue.read { db in
+            var out: [Int64: [Int64]] = [:]
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT playlist_item.playlistID, playlist_item.assetID FROM playlist_item
+                JOIN audio_asset ON audio_asset.id = playlist_item.assetID
+                ORDER BY playlist_item.playlistID, playlist_item.position
+            """)
+            for r in rows { out[r[0] as Int64, default: []].append(r[1] as Int64) }
+            return out
         }
     }
 
@@ -328,15 +349,12 @@ public final class LibraryStore: @unchecked Sendable {
 
     public func playlistItems(_ playlistID: Int64) throws -> [AudioAsset] {
         try dbQueue.read { db in
-            let items = try PlaylistItem
-                .filter(Column("playlistID") == playlistID)
-                .order(Column("position"))
-                .fetchAll(db)
-            var assets: [AudioAsset] = []
-            for it in items {
-                if let a = try AudioAsset.filter(key: it.assetID).fetchOne(db) { assets.append(a) }
-            }
-            return assets
+            try AudioAsset.fetchAll(db, sql: """
+                SELECT audio_asset.* FROM playlist_item
+                JOIN audio_asset ON audio_asset.id = playlist_item.assetID
+                WHERE playlist_item.playlistID = ?
+                ORDER BY playlist_item.position
+            """, arguments: [playlistID])
         }
     }
 

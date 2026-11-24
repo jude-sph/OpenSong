@@ -277,7 +277,7 @@ struct SongsTable: View {
                             }
                             let anyOffDevice = orderedIDs(ids).contains { store.song($0)?.onDevice == false }
                             Button(anyOffDevice ? "Send to Device" : "Remove from Device") {
-                                for id in ids { store.pin(id, anyOffDevice) }
+                                store.pin(Array(ids), anyOffDevice)
                             }
                             Divider()
                             if n == 1 {

@@ -153,12 +153,45 @@ struct ArtworkThumbnail: View {
     }
 
     private func load() async {
-        image = nil
         let expanded = (path as NSString).expandingTildeInPath
+        // Decoded at the size it's drawn (×2 for Retina), and remembered: scrolling a row back
+        // into view is then a memory lookup, not a full-size PNG decode plus several file checks.
+        let pixels = Int(size * 2)
+        let memKey = "\(expanded)#\(version)#\(pixels)" as NSString
+        if let hit = ThumbnailMemory.cache.object(forKey: memKey) { image = hit; return }
+        image = nil
         guard !expanded.isEmpty, FileManager.default.fileExists(atPath: expanded) else { return }
         let cache = ArtworkCache.cacheURL(forMaster: expanded)
-        if await ArtworkCache.ensure(master: expanded, cache: cache, ffmpegPath: ffmpegPath) {
-            image = NSImage(contentsOf: cache)
-        }
+        guard await ArtworkCache.ensure(master: expanded, cache: cache, ffmpegPath: ffmpegPath) else { return }
+        let decoded = await Task.detached(priority: .userInitiated) {
+            ThumbnailMemory.downsample(cache, maxPixel: pixels)
+        }.value
+        guard !Task.isCancelled, let decoded else { return }
+        let img = NSImage(cgImage: decoded, size: NSSize(width: size, height: size))
+        ThumbnailMemory.cache.setObject(img, forKey: memKey)
+        image = img
+    }
+}
+
+/// In-memory thumbnails, keyed by master path + art version + pixel size. NSCache evicts under
+/// memory pressure, and the count limit keeps a long scroll through a big library bounded.
+enum ThumbnailMemory {
+    @MainActor static let cache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 3000
+        return c
+    }()
+
+    /// Decode straight to a small bitmap via ImageIO (never materialises the full-size cover).
+    nonisolated static func downsample(_ url: URL, maxPixel: Int) -> CGImage? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+        else { return nil }
+        let opts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(maxPixel, 16),
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary)
     }
 }

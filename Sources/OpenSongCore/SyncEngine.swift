@@ -61,8 +61,9 @@ public struct SyncEngine: Sendable {
         var desiredPaths = Set<String>()
         var addBytes: Int64 = 0
 
+        let idents = try store.allIdentitiesByID()
         for asset in desired {
-            guard let ident = try store.identity(asset.identityID) else { continue }
+            guard let ident = idents[asset.identityID] else { continue }
             let relPath = DeviceRelativePath.backslashPath(for: ident)
             desiredPaths.insert(relPath)
             let present = actualPaths.contains(relPath)
@@ -100,8 +101,9 @@ public struct SyncEngine: Sendable {
         // Prepass: resolve identities so the total amount of work is known before the first
         // transfer starts (otherwise the progress bar has no denominator).
         var jobs: [(asset: AudioAsset, ident: TrackIdentity, weight: Double)] = []
+        let idents = try store.allIdentitiesByID()
         for asset in plan.toAdd {
-            guard let ident = try store.identity(asset.identityID) else { continue }
+            guard let ident = idents[asset.identityID] else { continue }
             jobs.append((asset, ident, max(SyncProgress.minTrackWeight, ident.durationSec)))
         }
         let totalSteps = jobs.count + plan.toRemove.count
@@ -168,7 +170,7 @@ public struct SyncEngine: Sendable {
             let assets = try store.playlistItems(pid)
             var entries: [(identity: TrackIdentity, durationSec: Int)] = []
             for a in assets {
-                if let ident = try store.identity(a.identityID) {
+                if let ident = idents[a.identityID] {
                     entries.append((ident, Int(ident.durationSec.rounded())))
                 }
             }

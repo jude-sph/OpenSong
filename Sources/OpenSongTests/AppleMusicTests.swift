@@ -180,3 +180,29 @@ func registerCloudLibraryUpdateTests() {
         try t.expectEqual(CloudLibraryUpdate.parse(status: 1, stdout: "", stderr: "boom"), .failed("boom"), "other error")
     }
 }
+
+func registerOwnershipIndexTests() {
+    t.test("ownership index agrees with the linear matches() scan on every combination") {
+        typealias Lib = AppleMusicCompare.LibraryTrack
+        let titles = ["Ivy", "Ivy (2016 Remaster)", "Nikes (feat. Someone)", "Nikes", "Solo", "Águà!"]
+        let artists = ["Frank Ocean", "frank ocean", "Other"]
+        let albums = ["Blonde", "", "Live"]
+        let durs: [Double] = [0, 249, 252, 300]
+        var library: [(id: Int64, track: Lib)] = []
+        var id: Int64 = 0
+        for ti in titles { for ar in artists { for al in albums.prefix(2) { for d in durs.suffix(2) {
+            id += 1; library.append((id, Lib(title: ti, artist: ar, album: al, durationSec: d)))
+        } } } }
+        let index = OwnershipIndex(); index.rebuild(library)
+        var checked = 0
+        for ti in titles + ["Missing"] { for ar in artists { for al in albums { for d in durs {
+            let expected = library.first {
+                AppleMusicCompare.matches(name: ti, artist: ar, album: al, durationSec: d, $0.track)
+            }?.id
+            try t.expectEqual(index.match(name: ti, artist: ar, album: al, durationSec: d), expected,
+                              "\(ti)|\(ar)|\(al)|\(d)")
+            checked += 1
+        } } } }
+        try t.expect(checked > 200, "covered a real spread")
+    }
+}

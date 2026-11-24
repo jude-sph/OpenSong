@@ -25,6 +25,29 @@ func registerLibraryStoreTests() {
         try t.expectEqual(all[0].1.title, "Song", "identity joined")
         try t.expectEqual(all[0].0.contentHash, "h1", "asset hash")
     }
+    t.test("bulk playlist/identity reads match the per-row ones") {
+        let store = try makeStore()
+        var assetIDs: [Int64] = []
+        for n in ["A", "B", "C"] {
+            let i = try store.upsertIdentity(TrackIdentity(title: n, artist: "X", durationSec: 1, provenance: .itunesResolved))
+            assetIDs.append(try store.insertAsset(sampleAsset(identityID: i, hash: "h\(n)", path: "/lib/\(n).mp3")))
+        }
+        let p1 = try store.createPlaylist(name: "one", syncToDevice: false)
+        let p2 = try store.createPlaylist(name: "two", syncToDevice: false)
+        // Insert out of position order to prove ordering comes from `position`.
+        try store.addToPlaylist(playlistID: p1, assetID: assetIDs[2], position: 1)
+        try store.addToPlaylist(playlistID: p1, assetID: assetIDs[0], position: 0)
+        try store.addToPlaylist(playlistID: p2, assetID: assetIDs[1], position: 0)
+        let bulk = try store.allPlaylistAssetIDs()
+        try t.expectEqual(bulk[p1] ?? [], [assetIDs[0], assetIDs[2]], "p1 in position order")
+        try t.expectEqual(bulk[p2] ?? [], [assetIDs[1]], "p2")
+        try t.expectEqual(try store.playlistItems(p1).compactMap(\.id), bulk[p1] ?? [], "per-playlist read agrees")
+        let idents = try store.allIdentitiesByID()
+        for (asset, ident) in try store.allAssetsWithIdentity() {
+            try t.expectEqual(idents[asset.identityID]?.title, ident.title, "identity map agrees")
+        }
+        try t.expectEqual(try store.allAssetsWithIdentity().map { $0.1.title }, ["A", "B", "C"], "asset order kept")
+    }
     t.test("playlist items keep position order") {
         let store = try makeStore()
         let idA = try store.upsertIdentity(TrackIdentity(title: "A", artist: "X", durationSec: 10))

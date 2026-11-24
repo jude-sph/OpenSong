@@ -194,3 +194,40 @@ public enum AppleMusicCompare {
         return (owned, missing)
     }
 }
+
+/// A library prepared for repeated "do I own this track?" questions. Gives the same answer as
+/// scanning the library with `AppleMusicCompare.matches` (first match in library order), but each
+/// question is a dictionary lookup, and each distinct string is normalised only once.
+public final class OwnershipIndex {
+    private struct Entry { var id: Int64; var album: String; var durationSec: Double }
+    private var byKey: [String: [Entry]] = [:]
+    private var memo: [String: String] = [:]
+
+    public init() {}
+
+    /// Replace the indexed library. Order matters: the first matching song wins.
+    public func rebuild(_ songs: [(id: Int64, track: AppleMusicCompare.LibraryTrack)]) {
+        byKey.removeAll(keepingCapacity: true)
+        for s in songs {
+            byKey[normalize(s.track.title) + "␟" + normalize(s.track.artist), default: []]
+                .append(Entry(id: s.id, album: normalize(s.track.album), durationSec: s.track.durationSec))
+        }
+    }
+
+    /// `AppleMusicCompare.normalize`, memoised (it runs six regex passes).
+    public func normalize(_ s: String) -> String {
+        if let hit = memo[s] { return hit }
+        let n = AppleMusicCompare.normalize(s)
+        memo[s] = n
+        return n
+    }
+
+    /// Id of the library song matching this track, or nil.
+    public func match(name: String, artist: String, album: String, durationSec: Double) -> Int64? {
+        guard let entries = byKey[normalize(name) + "␟" + normalize(artist)] else { return nil }
+        let na = normalize(album)
+        return entries.first {
+            $0.album == na || (durationSec > 0 && abs(durationSec - $0.durationSec) <= 4)
+        }?.id
+    }
+}

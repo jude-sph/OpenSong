@@ -1190,6 +1190,21 @@ pushed to the Walkman by hand — covers now display on the player.
   labels say "YouTube or SoundCloud". Short on.soundcloud.com links that resolve to a set are
   caught by yt-dlp returning >1 entry.
 
+- [x] **Performance pass (2026-11-24).** Audit found repeated work rather than slow algorithms:
+  - `reload()` ran ~500 queries (identity per asset, asset per playlist item) → now 4 (bulk reads
+    joined in memory; `allPlaylistAssetIDs`, `allIdentitiesByID`). Sync planner likewise.
+  - `filteredSongs` / `albums` recomputed on every access (≈8× per redraw) → memoised on
+    `songsVersion` + their inputs. `song(id)` linear scan → dictionary. Album sort keys computed
+    once per album, not per comparison. `songs` assigned once per reload (was 1 + one per row).
+  - Apple Music / Spotify ownership: rebuilt the library and ran ~12 regexes per comparison per
+    track per redraw → `OwnershipIndex` (Core; dictionary lookup, memoised normalise; tested to
+    agree with `AppleMusicCompare.matches`).
+  - Multi-select "Send to Device" walked the Walkman + reloaded once per song → once per action.
+  - Thumbnails re-decoded the full-size cover from disk on every row appearance → ImageIO
+    downsample to drawn size + `NSCache`.
+  Not done (noted for later): `Shell.run` inside `Task.detached` in a few places, streaming
+  SHA-256, splitting `AppStore`, iPod-shuffle sync's per-track identity queries.
+
 ## Known environment gotchas (for future sessions)
 - **Ad-hoc signing resets TCC**: each `make-app.sh` rebuild changes the ad-hoc signature, so
   macOS Automation/Screen-Recording permission may re-prompt after every rebuild.
