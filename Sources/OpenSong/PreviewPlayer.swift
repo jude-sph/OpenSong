@@ -382,6 +382,7 @@ func timeStr(_ s: Double) -> String {
 
 /// Persistent transport bar above the activity bar.
 struct PreviewPlayerBar: View {
+    @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
     let model: PreviewPlayerModel
     @State private var showQueue = false
