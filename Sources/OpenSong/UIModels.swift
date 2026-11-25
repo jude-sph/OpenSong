@@ -100,6 +100,69 @@ struct DeviceState {
     var freeBytes: Int64 = 5_338_390_528
     var usedBytes: Int64 { totalBytes - freeBytes }
     var songCount: Int = 0
+    /// Unplugged, but a device has been seen before (remembered, or has `device_track` rows): the
+    /// Device screen shows what's on it and lets it be edited offline.
+    var known: Bool = false
+    /// When it was last connected; nil when connected now, or never recorded.
+    var lastSeen: Date? = nil
+}
+
+/// What was last seen of a device while it was plugged in, so the Device screen can show it (and
+/// plan against its capacity) while it's unplugged. Persisted per device id.
+struct RememberedDevice: Codable, Equatable {
+    var kind: String            // "walkman" | "shuffle"
+    var name: String
+    var totalBytes: Int64
+    var freeBytes: Int64
+    var lastSeen: Date
+
+    var deviceKind: DeviceKind { kind == "shuffle" ? .shuffle : .walkman }
+}
+
+/// A playlist that puts a song on the device (it is ticked to sync).
+struct DevicePlaylistRef: Hashable, Identifiable {
+    var id: Int64
+    var name: String
+}
+
+/// One song in a Device screen list — on the device, about to be added, or about to be removed —
+/// with the reasons it is (or was) wanted there.
+struct DeviceSongRow: Identifiable, Hashable {
+    /// Unique within its list: the device path for recorded tracks, "asset:<id>" for additions.
+    var id: String
+    var assetID: Int64
+    /// The library song; nil when the asset has since been deleted from the library.
+    var song: SongRow?
+    var title: String
+    var artist: String
+    var pinned: Bool
+    var viaPlaylists: [DevicePlaylistRef]
+    /// On the device but queued for removal by the next sync.
+    var pendingRemoval: Bool = false
+    /// A removal that only happens because the same song is being re-sent under a new path.
+    var replaced: Bool = false
+    var sizeBytes: Int64 = 0
+
+    var wanted: Bool { pinned || !viaPlaylists.isEmpty }
+    /// "Pinned · via late night · via bangers" — why the song is on the device.
+    var reasonLabels: [String] {
+        (pinned ? ["Pinned"] : []) + viaPlaylists.map { "via \($0.name)" }
+    }
+}
+
+/// The Device screen's model: what's recorded on the device, and the diff the next sync applies.
+/// Built from the live plan when the device is mounted, else from the offline plan (the recorded
+/// rows + remembered capacity).
+struct SyncPreview {
+    var onDevice: [DeviceSongRow]
+    var willAdd: [DeviceSongRow]
+    /// On the device already, but out of date (master edited, bitrate/recipe changed) — re-sent.
+    var willUpdate: [DeviceSongRow]
+    var willRemove: [DeviceSongRow]
+    var upToDateCount: Int
+    var projectedUsedBytes: Int64
+
+    var pendingCount: Int { willAdd.count + willUpdate.count + willRemove.count }
 }
 
 struct AppSettings: Codable {

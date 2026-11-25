@@ -183,9 +183,17 @@ struct Sidebar: View {
         Button { store.activeView = .device } label: {
             HStack(spacing: 8) {
                 Image(systemName: "ipod").font(.system(size: 13)).frame(width: 18)
-                Text(store.device.connected ? store.device.name : "Walkman — Offline")
+                Text(store.device.connected ? store.device.name
+                     : (store.device.known ? "\(store.device.name) — Offline" : "Walkman — Offline"))
                     .font(.system(size: 13)).lineLimit(1)
                 Spacer(minLength: 0)
+                // Changes queued for the next sync (made while browsing, or offline on the Device screen).
+                if let pending = store.syncPreview?.pendingCount, pending > 0 {
+                    Text("\(pending)").font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(isActive(.device) ? Color.white.opacity(0.2) : theme.chip, in: Capsule())
+                        .help("\(pending) change(s) waiting for the next sync")
+                }
                 if store.device.connected {
                     MiniRing(fraction: Double(store.device.usedBytes) / Double(max(store.device.totalBytes, 1)))
                         .frame(width: 16, height: 16)

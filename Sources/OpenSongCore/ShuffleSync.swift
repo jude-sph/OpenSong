@@ -47,16 +47,8 @@ public struct ShuffleSyncEngine: Sendable {
         self.settings = settings; self.deviceUUID = deviceUUID; self.voiceover = voiceover
     }
 
-    /// Union of pinned assets and device-playlist members, ordered by id.
-    public func desiredAssets() throws -> [AudioAsset] {
-        var byID: [Int64: AudioAsset] = [:]
-        for a in try store.pinnedAssets() { if let id = a.id { byID[id] = a } }
-        for pl in try store.devicePlaylists() {
-            guard let pid = pl.id else { continue }
-            for a in try store.playlistItems(pid) { if let id = a.id { byID[id] = a } }
-        }
-        return byID.values.sorted { ($0.id ?? 0) < ($1.id ?? 0) }
-    }
+    /// Union of pinned assets and device-playlist members, ordered by id (same rule as the Walkman).
+    public func desiredAssets() throws -> [AudioAsset] { try SyncEngine.desiredAssets(store) }
 
     private func filetype(forExtension ext: String) -> Int {
         switch ext.lowercased() {
@@ -71,33 +63,54 @@ public struct ShuffleSyncEngine: Sendable {
     }
     private func deviceRelPath(assetID: Int64, ext: String) -> String { "iPod_Control/Music/\(assetID).\(ext)" }
 
-    /// Preview counts for the UI, reusing the Walkman's `SyncPlan` shape.
+    /// Preview counts for the UI, reusing the Walkman's `SyncPlan` shape. Live: a managed file
+    /// only counts as present if it is really on the mounted volume.
     public func plan() throws -> SyncPlan {
-        let desired = try desiredAssets()
-        let managed = try store.deviceTracks(deviceUUID)
-        let managedByAsset = Dictionary(managed.map { ($0.assetID, $0) }, uniquingKeysWith: { a, _ in a })
         let (total, free) = capacity()
+        let fm = FileManager.default
+        let mount = layout.mountPoint
+        return Self.makePlan(desired: try desiredAssets(), identities: try store.allIdentitiesByID(),
+                             managed: try store.deviceTracks(deviceUUID),
+                             isPresent: { fm.fileExists(atPath: mount.appendingPathComponent($0.relativePath).path) },
+                             totalBytes: total, freeBytes: free, settings: settings)
+    }
+
+    /// Offline plan: the iPod isn't mounted, so every managed row is assumed still present and
+    /// the capacity is the one remembered from its last connection.
+    public static func offlinePlan(store: LibraryStore, settings: TranscodeSettings, deviceUUID: String,
+                                   totalBytes: Int64, freeBytes: Int64) throws -> SyncPlan {
+        makePlan(desired: try SyncEngine.desiredAssets(store), identities: try store.allIdentitiesByID(),
+                 managed: try store.deviceTracks(deviceUUID), isPresent: { _ in true },
+                 totalBytes: totalBytes, freeBytes: freeBytes, settings: settings)
+    }
+
+    /// The diff with no I/O. The Shuffle keys its files by asset id (not by tag-derived path), so
+    /// presence is asked per managed row rather than given as a path set.
+    public static func makePlan(desired: [AudioAsset], identities: [Int64: TrackIdentity],
+                                managed: [DeviceTrackRow], isPresent: (DeviceTrackRow) -> Bool,
+                                totalBytes total: Int64, freeBytes free: Int64,
+                                settings: TranscodeSettings) -> SyncPlan {
+        let managedByAsset = Dictionary(managed.map { ($0.assetID, $0) }, uniquingKeysWith: { a, _ in a })
         var toAdd: [AudioAsset] = []; var upToDate: [AudioAsset] = []; var addBytes: Int64 = 0
         for asset in desired {
             if let row = managedByAsset[asset.id ?? -1], row.contentHash == asset.contentHash,
-               row.recipe == settings.deviceRecipe,
-               FileManager.default.fileExists(atPath: layout.mountPoint.appendingPathComponent(row.relativePath).path) {
+               row.recipe == settings.deviceRecipe, isPresent(row) {
                 upToDate.append(asset)
             } else {
                 toAdd.append(asset)
-                if let ident = try store.identity(asset.identityID) {
+                if let ident = identities[asset.identityID] {
                     addBytes += Int64(Double(settings.bitrateKbps) * 1000 / 8 * ident.durationSec)
                 }
             }
         }
         let desiredIDs = Set(desired.compactMap { $0.id })
-        var toRemove: [String] = []; var removeBytes: Int64 = 0
+        var removals: [DeviceTrackRow] = []; var removeBytes: Int64 = 0
         for row in managed where !desiredIDs.contains(row.assetID) {
-            toRemove.append(row.relativePath); removeBytes += row.sizeBytes
+            removals.append(row); removeBytes += row.sizeBytes
         }
-        return SyncPlan(toAdd: toAdd, toRemove: toRemove, upToDate: upToDate,
+        return SyncPlan(toAdd: toAdd, toRemove: removals.map { $0.relativePath }, upToDate: upToDate,
                         projectedUsedBytes: max(0, (total - free) + addBytes - removeBytes),
-                        totalBytes: total, freeBytes: free)
+                        totalBytes: total, freeBytes: free, removals: removals)
     }
 
     public func capacity() -> (totalBytes: Int64, freeBytes: Int64) {

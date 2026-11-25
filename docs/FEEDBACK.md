@@ -2,6 +2,40 @@
 
 Running log of feedback from real use, with status. Newest first.
 
+## 2026-11-25 session — the Device screen works with the device unplugged
+
+- [x] **The Device screen was a dead end without the Walkman plugged in**: just a "No device
+  connected" placeholder, though `device_track` already remembered exactly what was on it. Now the
+  screen has one layout for both states. Unplugged, it says "Not connected · last seen 2 days ago",
+  assumes nothing on the device changed, and shows everything recorded on it.
+- [x] **Planning split from the live device.** `SyncEngine.makePlan` (and `ShuffleSyncEngine.makePlan`)
+  are pure diffs of desired assets vs. managed rows vs. present paths. The live `plan()` feeds them the
+  volume walk and real capacity (results unchanged); the new `offlinePlan` feeds the recorded rows as
+  the present paths plus the remembered capacity. Plans now carry `removals` (the `device_track` rows),
+  so every pending removal maps back to an asset and can be undone. On reconnect the live plan runs as
+  before, which catches any drift; there's no separate reconcile.
+- [x] **The device is remembered**: kind, name, total/free bytes and last-seen date, per device id
+  (UserDefaults `rememberedDevices`), refreshed on every connected `refreshDevice()`, which includes the
+  one after each sync. A device synced before this change, with rows but no record, still shows up,
+  with its capacity estimated from the rows.
+- [x] **Sections**: *Will add* (Undo), *Will update* (out-of-date copies being re-sent), *Will remove*
+  (Keep), *Playlists on device* (a sync switch per playlist), and a searchable *On device* list. Each
+  song shows why it's there ("Pinned", "via late night"), worked out in one pass from in-memory
+  playlists and a single pinned-ids query. Click, ⇧-click and ⌘-click select several songs, and a
+  bulk action runs as one batch with one preview rebuild.
+- [x] **Removing never edits a playlist silently.** A pinned song is unpinned. A song that's there
+  through a playlist opens a choice: "Stop syncing ‹playlist›" or "Remove from ‹playlist›".
+- [x] Sync is live only when the device is connected. Unplugged, the button is inert and reads
+  "Connect to sync · N changes pending", and the sidebar's Device item shows the same count. Eject,
+  Import from device and Rebuild copies only appear while connected. "Simulate connect" is left only
+  for a device that has never been seen.
+- The weak no-device fallback estimate in `buildSyncPreview()` is gone. It ignored pins and removals.
+- Tests: offline plan add/remove/up-to-date, remembered capacity, playlist untick, stale recipe,
+  Shuffle equivalent, and "offline agrees with live after a sync". New render shot:
+  `05c-device-offline-dark`.
+- Not verified on hardware: unplug → edit → replug → one Sync. Also not clicked through live: the
+  confirmation dialog and multi-select (the render harness can't show either).
+
 ## 2026-08-13 session (v0.13.1) — search kept filtering inside an album
 
 - [x] **Searching for an album, then opening it, showed only the matching tracks** — and the search

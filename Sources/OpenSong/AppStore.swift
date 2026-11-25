@@ -140,13 +140,6 @@ final class AppStore {
         }
     }
 
-    struct SyncPreview {
-        var willAdd: [SongRow]
-        var willRemove: [String]
-        var upToDate: [SongRow]
-        var projectedUsedBytes: Int64
-    }
-
     struct ImportRow: Identifiable, Sendable {
         let id = UUID()
         var candidate: ImportCandidate
@@ -175,9 +168,14 @@ final class AppStore {
     /// it's unplugged (that's when you decide what to add next). Before this it reset to "none"
     /// whenever the device was absent — including at launch — which looked like the app forgetting.
     private var materializing = false   // re-entrancy guard for materializeCompletedGroups()
-    private var currentUUID: String = UserDefaults.standard.string(forKey: "lastDeviceUUID") ?? "none" {
-        didSet { UserDefaults.standard.set(currentUUID, forKey: "lastDeviceUUID") }
+    // (Render mode starts from nothing and never writes back, so screenshots can't pick up — or
+    // clobber — the real device's records.)
+    private var currentUUID: String = renderMode ? "none" : (UserDefaults.standard.string(forKey: "lastDeviceUUID") ?? "none") {
+        didSet { if !renderMode { UserDefaults.standard.set(currentUUID, forKey: "lastDeviceUUID") } }
     }
+    /// Kind, name and capacity of each device as last seen connected, keyed by device id — what
+    /// the Device screen shows (and plans against) while it is unplugged.
+    private var rememberedDevices: [String: RememberedDevice] = renderMode ? [:] : AppStore.loadRememberedDevices()
 
     private var libraryRoot: URL {
         URL(fileURLWithPath: (settings.libraryPath as NSString).expandingTildeInPath)
@@ -589,23 +587,29 @@ final class AppStore {
             }
             device = DeviceState(connected: true, name: "Walkman NW-E394",
                                  totalBytes: cap.totalBytes, freeBytes: cap.freeBytes,
-                                 songCount: present.count)
+                                 songCount: present.count, known: true)
+            rememberDevice(kind: .walkman)
         } else if let sh = DeviceDetector.connectedShuffle() {
             deviceKind = .shuffle
             currentUUID = shuffleUUID(sh)
             let cap = shuffleEngine(sh).capacity()
             let count = (try? FileManager.default.contentsOfDirectory(atPath: sh.layout.musicDir.path).count) ?? 0
             device = DeviceState(connected: true, name: "iPod shuffle",
-                                 totalBytes: cap.totalBytes, freeBytes: cap.freeBytes, songCount: count)
+                                 totalBytes: cap.totalBytes, freeBytes: cap.freeBytes, songCount: count,
+                                 known: true)
+            rememberDevice(kind: .shuffle)
         } else {
             deviceKind = .none
-            device.connected = false
-            // Unplugged, but not forgotten: the managed-track rows still say what's on it.
+            // Unplugged, but not forgotten: the managed-track rows still say what's on it, and the
+            // remembered record says what it is and how full it was.
             adoptKnownDeviceIfNeeded()
-            if let store, let rows = try? store.deviceTracks(currentUUID) { device.songCount = rows.count }
+            device = offlineDeviceState((try? store?.deviceTracks(currentUUID)) ?? [])
         }
         reload()                                    // picks up the on-device flags
-        if device.connected { buildSyncPreview() }   // …which the diff preview then reports on
+        // …which the diff preview then reports on — live when mounted, else the offline plan.
+        // (Runs after every sync too: `finishSync` calls back in here, which also re-remembers
+        // the device's post-sync capacity above.)
+        if device.connected || device.known { buildSyncPreview() } else { syncPreview = nil }
     }
 
     /// Point at whichever device the database has records for, when the current id has none — the
@@ -616,10 +620,56 @@ final class AppStore {
         if let known = (try? store.primaryDeviceUUID()) ?? nil { currentUUID = known }
     }
 
+    // MARK: remembered device (offline Device screen)
+
+    private static let rememberedDevicesKey = "rememberedDevices"
+
+    private static func loadRememberedDevices() -> [String: RememberedDevice] {
+        guard let data = UserDefaults.standard.data(forKey: rememberedDevicesKey),
+              let map = try? JSONDecoder().decode([String: RememberedDevice].self, from: data) else { return [:] }
+        return map
+    }
+
+    /// Record the connected device's kind, name and live capacity under its id, stamped now.
+    private func rememberDevice(kind: DeviceKind) {
+        rememberedDevices[currentUUID] = RememberedDevice(
+            kind: kind == .shuffle ? "shuffle" : "walkman", name: device.name,
+            totalBytes: device.totalBytes, freeBytes: device.freeBytes, lastSeen: Date())
+        guard !renderMode, let data = try? JSONEncoder().encode(rememberedDevices) else { return }
+        UserDefaults.standard.set(data, forKey: Self.rememberedDevicesKey)
+    }
+
+    /// The device as last seen, for when it's unplugged. A device with rows but no record (synced
+    /// before records were kept) is still shown, with its capacity estimated from the rows.
+    private func offlineDeviceState(_ rows: [DeviceTrackRow]) -> DeviceState {
+        if let r = rememberedDevices[currentUUID] {
+            return DeviceState(connected: false, name: r.name, totalBytes: r.totalBytes,
+                               freeBytes: r.freeBytes, songCount: rows.count, known: true, lastSeen: r.lastSeen)
+        }
+        guard !rows.isEmpty else { return DeviceState(connected: false) }
+        let shuffle = Self.inferKind(rows) == .shuffle
+        let total: Int64 = shuffle ? 1_960_000_000 : DeviceState().totalBytes
+        let used = rows.reduce(Int64(0)) { $0 + $1.sizeBytes }
+        return DeviceState(connected: false, name: shuffle ? "iPod shuffle" : "Walkman NW-E394",
+                           totalBytes: total, freeBytes: max(0, total - used),
+                           songCount: rows.count, known: true)
+    }
+
+    /// The Shuffle keeps its files under `iPod_Control/`; the Walkman under artist folders.
+    private static func inferKind(_ rows: [DeviceTrackRow]) -> DeviceKind {
+        rows.first?.relativePath.hasPrefix("iPod_Control") == true ? .shuffle : .walkman
+    }
+
+    /// The kind of device to plan for: the connected one, else the remembered one.
+    private func planningKind(_ rows: [DeviceTrackRow]) -> DeviceKind {
+        if deviceKind != .none { return deviceKind }
+        return rememberedDevices[currentUUID]?.deviceKind ?? Self.inferKind(rows)
+    }
+
     func simulateDevice() {
         deviceKind = .walkman
         device = DeviceState(connected: true, name: "Walkman NW-E394 (simulated)",
-                             totalBytes: 7_363_067_904, freeBytes: 5_338_390_528, songCount: 0)
+                             totalBytes: 7_363_067_904, freeBytes: 5_338_390_528, songCount: 0, known: true)
         buildSyncPreview()
     }
 
@@ -634,41 +684,173 @@ final class AppStore {
                                 fallback: sh.uuid.isEmpty ? "shuffle:\(sh.name)" : sh.uuid)
     }
 
+    /// The shuffle has no screen — embedding cover art would only eat its (small) storage. Shared
+    /// by the live engine and the offline plan, so both compare against the same recipe.
+    private var shuffleTranscodeSettings: TranscodeSettings {
+        var s = transcodeSettings; s.embedArtwork = false; return s
+    }
+
     private func shuffleEngine(_ sh: ShuffleDevice) -> ShuffleSyncEngine {
-        // The shuffle has no screen — embedding cover art would only eat its (small) storage.
-        var s = transcodeSettings; s.embedArtwork = false
-        return ShuffleSyncEngine(store: store!, transcoder: transcoder, layout: sh.layout,
-                          settings: s, deviceUUID: shuffleUUID(sh),
+        ShuffleSyncEngine(store: store!, transcoder: transcoder, layout: sh.layout,
+                          settings: shuffleTranscodeSettings, deviceUUID: shuffleUUID(sh),
                           voiceover: settings.shuffleVoiceOver ? SayVoiceOver() : nil)
     }
 
-    /// Real diff preview from the sync engine when a device is present; else a display estimate.
+    /// The Device screen's model. Mounted: the engine's live plan (walks the device, real capacity).
+    /// Unplugged but known: the offline plan — the recorded rows stand in for the device and the
+    /// remembered capacity for the volume — so edits made offline show up as the pending diff that
+    /// one Sync applies on reconnect. Never seen: nil.
     func buildSyncPreview() {
         guard let store else { return }
+        let rows = (try? store.deviceTracks(currentUUID)) ?? []
         let plan: SyncPlan? = {
-            if deviceKind == .walkman, let vol = DeviceDetector.connectedWalkman() {
+            if device.connected, deviceKind == .walkman, let vol = DeviceDetector.connectedWalkman() {
                 return try? SyncEngine(store: store, transcoder: transcoder, device: DeviceManager(volume: vol),
                                        settings: transcodeSettings, deviceUUID: walkmanUUID(vol)).plan()
-            } else if deviceKind == .shuffle, let sh = DeviceDetector.connectedShuffle() {
+            } else if device.connected, deviceKind == .shuffle, let sh = DeviceDetector.connectedShuffle() {
                 return try? shuffleEngine(sh).plan()
+            } else if device.connected || device.known {
+                // Unplugged (or simulated): trust the rows and the remembered capacity.
+                if planningKind(rows) == .shuffle {
+                    return try? ShuffleSyncEngine.offlinePlan(
+                        store: store, settings: shuffleTranscodeSettings, deviceUUID: currentUUID,
+                        totalBytes: device.totalBytes, freeBytes: device.freeBytes)
+                }
+                return try? SyncEngine.offlinePlan(
+                    store: store, transcoder: transcoder, settings: transcodeSettings, deviceUUID: currentUUID,
+                    totalBytes: device.totalBytes, freeBytes: device.freeBytes)
             }
             return nil
         }()
-        if let plan {
-            syncPreview = SyncPreview(
-                willAdd: plan.toAdd.compactMap { $0.id.flatMap(song) },
-                willRemove: plan.toRemove,
-                upToDate: plan.upToDate.compactMap { $0.id.flatMap(song) },
-                projectedUsedBytes: plan.projectedUsedBytes)
-            return
+        guard let plan else { syncPreview = nil; return }
+        syncPreview = makePreview(plan, rows: rows, pinned: (try? store.pinnedAssetIDs()) ?? [])
+    }
+
+    /// Turn a plan into Device-screen rows, working out in one pass why each song is wanted on the
+    /// device (pinned, and/or via which syncing playlists) from data already in memory.
+    private func makePreview(_ plan: SyncPlan, rows: [DeviceTrackRow], pinned: Set<Int64>) -> SyncPreview {
+        var via: [Int64: [DevicePlaylistRef]] = [:]
+        for pl in playlists where pl.syncToDevice {
+            let ref = DevicePlaylistRef(id: pl.id, name: pl.name)
+            for sid in pl.songIDs where via[sid]?.last?.id != pl.id { via[sid, default: []].append(ref) }
         }
-        // Fallback (simulated/no device): estimate from device-flagged playlists + pins.
-        let desired = Set(playlists.filter { $0.syncToDevice }.flatMap { $0.songIDs })
-        let add = songs.filter { desired.contains($0.id) && !$0.onDevice }
-        let addBytes = add.reduce(Int64(0)) { $0 + Int64(Double(settings.bitrateKbps) * 1000 / 8 * $1.durationSec) }
-        syncPreview = SyncPreview(willAdd: add, willRemove: [],
-                                  upToDate: songs.filter { desired.contains($0.id) && $0.onDevice },
-                                  projectedUsedBytes: device.usedBytes + addBytes)
+        let recordedIDs = Set(rows.map { $0.assetID })
+        let desiredIDs = Set((plan.toAdd + plan.upToDate).compactMap { $0.id })
+        let removing = Set(plan.toRemove)
+
+        func make(_ id: String, assetID: Int64, path: String?, size: Int64) -> DeviceSongRow {
+            let s = song(assetID)
+            return DeviceSongRow(id: id, assetID: assetID, song: s,
+                                 title: s?.title ?? Self.titleFromDevicePath(path ?? ""),
+                                 artist: s?.artist ?? "", pinned: pinned.contains(assetID),
+                                 viaPlaylists: via[assetID] ?? [], sizeBytes: size)
+        }
+        func sortKey(_ r: DeviceSongRow) -> (String, String, Int, String) {
+            (r.song?.groupArtist ?? r.artist, r.song?.album ?? "", r.song?.track ?? 0, r.title)
+        }
+        func ordered(_ list: [DeviceSongRow]) -> [DeviceSongRow] { list.sorted { sortKey($0) < sortKey($1) } }
+
+        let onDevice = rows.map { r -> DeviceSongRow in
+            var row = make(r.relativePath, assetID: r.assetID, path: r.relativePath, size: r.sizeBytes)
+            row.pendingRemoval = removing.contains(r.relativePath)
+            return row
+        }
+        let rate = Double(settings.bitrateKbps) * 1000 / 8
+        var adds: [DeviceSongRow] = [], updates: [DeviceSongRow] = []
+        for a in plan.toAdd {
+            guard let id = a.id else { continue }
+            let est = Int64(rate * (song(id)?.durationSec ?? 0))
+            let row = make("asset:\(id)", assetID: id, path: nil, size: est)
+            if recordedIDs.contains(id) { updates.append(row) } else { adds.append(row) }
+        }
+        let removals = plan.removals.map { r -> DeviceSongRow in
+            var row = make(r.relativePath, assetID: r.assetID, path: r.relativePath, size: r.sizeBytes)
+            row.pendingRemoval = true
+            row.replaced = desiredIDs.contains(r.assetID)
+            return row
+        }
+        return SyncPreview(onDevice: ordered(onDevice), willAdd: ordered(adds), willUpdate: ordered(updates),
+                           willRemove: ordered(removals), upToDateCount: plan.upToDate.count,
+                           projectedUsedBytes: plan.projectedUsedBytes)
+    }
+
+    /// "Artist\Album\Title.mp3" → "Title", for a recorded track whose library entry is gone.
+    private static func titleFromDevicePath(_ path: String) -> String {
+        let last = path.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? path
+        return (last as NSString).deletingPathExtension
+    }
+
+    // MARK: editing the device (works unplugged; applied by the next sync)
+
+    /// Take songs off the device by unpinning them. Songs that a syncing playlist also holds stay
+    /// — the Device screen offers "Stop syncing" / "Remove from playlist" for those instead, since
+    /// a playlist is never edited silently.
+    func removeFromDevice(_ songIDs: [Int64]) {
+        guard !songIDs.isEmpty else { return }
+        pin(songIDs, false)
+        reportStillOnDevice(songIDs)
+    }
+
+    /// Undo a pending removal: pin the songs, so they're wanted on the device again.
+    func keepOnDevice(_ songIDs: [Int64]) {
+        guard !songIDs.isEmpty else { return }
+        pin(songIDs, true)
+    }
+
+    /// Stop syncing these playlists (and unpin `unpin`), with one preview rebuild for the lot.
+    func stopSyncingPlaylists(_ playlistIDs: [Int64], unpin: [Int64] = []) {
+        guard let store else { return }
+        for pid in playlistIDs {
+            try? store.setPlaylistSync(pid, false)
+            if let i = playlists.firstIndex(where: { $0.id == pid }) { playlists[i].syncToDevice = false }
+        }
+        for id in unpin { try? store.pin(assetID: id, false) }
+        buildSyncPreview()
+        reportStillOnDevice(unpin)
+    }
+
+    /// Remove songs from one playlist (and unpin `unpin`) — the explicit "Remove from <playlist>"
+    /// choice on the Device screen. One reload and one preview rebuild for the whole selection.
+    func removeFromPlaylist(_ playlistID: Int64, songIDs: [Int64], unpin: [Int64] = []) {
+        guard let store else { return }
+        for sid in songIDs { try? store.removePlaylistItem(playlistID: playlistID, assetID: sid) }
+        for id in unpin { try? store.pin(assetID: id, false) }
+        reload()
+        buildSyncPreview()
+        reportStillOnDevice(songIDs + unpin)
+    }
+
+    /// After a removal, say so if some of the songs are still wanted (another syncing playlist).
+    private func reportStillOnDevice(_ songIDs: [Int64]) {
+        guard let p = syncPreview else { return }
+        let asked = Set(songIDs)
+        let still = Set((p.onDevice.filter { !$0.pendingRemoval } + p.willAdd + p.willUpdate)
+            .filter { asked.contains($0.assetID) && $0.wanted }.map { $0.assetID })
+        if !still.isEmpty {
+            lastMessage = "\(still.count) song(s) stay on the device — a syncing playlist still includes them."
+        }
+    }
+
+    /// An unplugged Walkman with a few songs on it and some edits queued, for the render harness.
+    func seedOfflineDeviceForRender() {
+        guard renderMode, let store, currentUUID != "RENDER-WALKMAN" else { return }
+        currentUUID = "RENDER-WALKMAN"
+        let recipe = transcodeSettings.deviceRecipe
+        let onDevice = ["Vordhosbn", "Feel Good Inc.", "Ivy", "Self Control", "Dare", "Helmet"]
+        for s in songs where onDevice.contains(s.title) {
+            guard let asset = try? store.asset(s.id), let ident = try? store.identity(s.identityID) else { continue }
+            try? store.setDeviceTrack(DeviceTrackRow(
+                deviceUUID: currentUUID, relativePath: DeviceRelativePath.backslashPath(for: ident),
+                assetID: s.id, transcodedBitrate: settings.bitrateKbps, contentHash: asset.contentHash,
+                sizeBytes: Int64(Double(settings.bitrateKbps) * 1000 / 8 * s.durationSec), recipe: recipe))
+        }
+        rememberedDevices[currentUUID] = RememberedDevice(
+            kind: "walkman", name: "Walkman NW-E394", totalBytes: 7_363_067_904, freeBytes: 5_100_000_000,
+            lastSeen: Date().addingTimeInterval(-2 * 86_400))
+        deviceKind = .none
+        device = offlineDeviceState((try? store.deviceTracks(currentUUID)) ?? [])
+        reload()
+        buildSyncPreview()
     }
 
     func runSync() {
