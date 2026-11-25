@@ -48,7 +48,7 @@ struct PlaylistDetailView: View {
                         ForEach(Array(songs.enumerated()), id: \.element.id) { idx, song in
                             let playing = store.player.current?.id == song.id
                             HStack(spacing: 10) {
-                                ArtworkThumbnail(path: song.path, seed: song.album, size: 24, corner: 3)
+                                ArtworkThumbnail(path: song.path, seed: song.album, size: 24, corner: 3, version: store.artVersion)
                                     .overlay { if playing { NowPlayingBadge(size: 24, playing: store.player.isPlaying) } }
                                 Text(song.title).font(.system(size: 13))
                                     .foregroundStyle(playing ? theme.accent : theme.text)

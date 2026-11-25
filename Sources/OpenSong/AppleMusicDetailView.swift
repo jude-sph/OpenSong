@@ -34,6 +34,9 @@ struct AppleMusicDetailView: View {
     private func addable(_ col: AppleMusicCollection) -> [AppleMusicTrack] {
         targetIndices(col).map { col.tracks[$0] }.filter { !store.isOwned($0) && !store.isPending($0) }
     }
+    private func importable(_ col: AppleMusicCollection) -> [AppleMusicTrack] {
+        targetIndices(col).map { col.tracks[$0] }.filter { $0.isImportableLocal && !store.isOwned($0) }
+    }
     private func removable(_ col: AppleMusicCollection) -> [AppleMusicTrack] {
         targetIndices(col).map { col.tracks[$0] }.filter { store.isPending($0) }
     }
@@ -42,6 +45,7 @@ struct AppleMusicDetailView: View {
         let own = store.ownership(col)
         let add = addable(col)
         let remove = removable(col)
+        let local = importable(col)
         let scope = selection.isEmpty ? "all" : "\(selection.count) selected"
         return HStack(spacing: 14) {
             Button { store.activeView = .appleMusic } label: {
@@ -63,6 +67,11 @@ struct AppleMusicDetailView: View {
                     .font(.system(size: 12)).foregroundStyle(theme.text3)
             }
             Spacer()
+            if !local.isEmpty {
+                Button("Import \(local.count) from Music") {
+                    store.importLocal(local); selection = []
+                }.buttonStyle(SoftButton())
+            }
             // Smart action button: acts on the target set (selected, or all).
             if !add.isEmpty {
                 Button("Add \(add.count) to Pending") {
@@ -99,6 +108,15 @@ struct AppleMusicDetailView: View {
             if owned {
                 Label("In library", systemImage: "checkmark").font(.system(size: 11))
                     .foregroundStyle(selected ? theme.selText : theme.green)
+            } else if track.isImportableLocal {
+                Text("Local file").font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Color(hex: 0x2e7bd6).opacity(0.16), in: Capsule())
+                    .foregroundStyle(selected ? theme.selText : Color(hex: 0x2e7bd6))
+                if pending {
+                    Text("Pending").font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(selected ? theme.selText : theme.amber)
+                }
             } else if pending {
                 Text("Pending").font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(selected ? theme.selText : theme.amber)
@@ -108,6 +126,11 @@ struct AppleMusicDetailView: View {
         .background(selected ? theme.accent : Color.clear)
         .contentShape(Rectangle())
         .onTapGesture { handleTap(index) }
+        .contextMenu {
+            if track.isImportableLocal && !owned {
+                Button("Import from Music library") { store.importLocal([track]) }
+            }
+        }
     }
 
     private func handleTap(_ index: Int) {

@@ -19,8 +19,8 @@ struct MetadataEditorView: View {
             Text("Edit Metadata").font(.system(size: 15, weight: .bold)).foregroundStyle(theme.text)
             HStack(alignment: .top, spacing: 16) {
                 VStack(spacing: 8) {
-                    ArtworkThumbnail(path: song?.path ?? "", seed: album, size: 120, corner: 8)
-                    Button("Replace artwork") {}.buttonStyle(SoftButton())
+                    ArtworkThumbnail(path: song?.path ?? "", seed: album, size: 120, corner: 8, version: store.artVersion)
+                    Button("Replace artwork") { if let s = song { store.findArtwork(forSong: s) } }.buttonStyle(SoftButton())
                 }
                 VStack(spacing: 10) {
                     field("Title", $title)

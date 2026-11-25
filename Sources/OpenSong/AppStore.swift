@@ -2107,6 +2107,19 @@ final class AppStore {
         }
     }
 
+    /// Import many local Music files in one go: one `reload()` and one summary message at the end.
+    func importLocal(_ tracks: [AppleMusicTrack]) {
+        guard let importer else { return }
+        let jobs = tracks.compactMap { t in t.location.map { (URL(fileURLWithPath: $0), t.identity) } }
+        guard !jobs.isEmpty else { return }
+        Task {
+            var done = 0
+            for (url, identity) in jobs where await Self.importOneWork(importer, url, identity) { done += 1 }
+            self.reload()
+            self.lastMessage = "Imported \(done) of \(jobs.count) from Music"
+        }
+    }
+
     // MARK: Spotify (public playlists → Pending)
 
     private func spotifyClient() -> SpotifyClient? {

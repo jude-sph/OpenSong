@@ -57,7 +57,7 @@ struct HealthView: View {
             sectionHeader("Low quality", low.count, color: theme.amber)
             ForEach(low) { song in
                 HStack(spacing: 12) {
-                    ArtworkThumbnail(path: song.path, seed: song.album, size: 34, corner: 4)
+                    ArtworkThumbnail(path: song.path, seed: song.album, size: 34, corner: 4, version: store.artVersion)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(song.title).font(.system(size: 13)).foregroundStyle(theme.text).lineLimit(1)
                         Text(song.artist).font(.system(size: 11)).foregroundStyle(theme.text3).lineLimit(1)

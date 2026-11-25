@@ -392,7 +392,7 @@ struct PreviewPlayerBar: View {
             HStack(spacing: 10) {
                 if let song = model.current {
                     Button { model.showArtWindow = true } label: {
-                        ArtworkThumbnail(path: song.path, seed: song.album, size: 36, corner: 4)
+                        ArtworkThumbnail(path: song.path, seed: song.album, size: 36, corner: 4, version: store.artVersion)
                     }.buttonStyle(.plain).help("Open album art view")
                     VStack(alignment: .leading, spacing: 1) {
                         Text(song.title).font(.system(size: 12, weight: .medium)).foregroundStyle(theme.text).lineLimit(1)
@@ -462,7 +462,7 @@ struct PreviewPlayerBar: View {
                     VStack(spacing: 0) {
                         ForEach(up) { song in
                             HStack(spacing: 8) {
-                                ArtworkThumbnail(path: song.path, seed: song.album, size: 26, corner: 3)
+                                ArtworkThumbnail(path: song.path, seed: song.album, size: 26, corner: 3, version: store.artVersion)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(song.title).font(.system(size: 12)).foregroundStyle(theme.text).lineLimit(1)
                                     Text(song.artist).font(.system(size: 10)).foregroundStyle(theme.text3).lineLimit(1)

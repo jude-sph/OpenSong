@@ -54,19 +54,19 @@ Kept current as I work. Newest requests at top of "In progress".
       land in Artist/Album folders.
 
 ## Feature ideas (brainstorm — pick & scope before building)
-- **Device Autofill**: "Fill remaining space" — auto-pick songs to fill the device's free bytes
-  (by recently-added / never-synced / random). Especially good for the small Shuffle. ← next fun one
 - [x] **Quality-upgrade finder** (v0.3.2) — Library Health: low-bitrate + spectral re-encode flags,
   one-click "Find better source".
 - [x] **Duplicate detection** (v0.3.2) — identity-based grouping + keep-best dedupe.
 - **Listening stats → smart lists**: play counts from the built-in player → "Most played",
-  "Never synced", "Recently added"; feed Autofill.
-- **Watched YouTube playlists**: remember a YT playlist and pull newly-added videos on refresh.
+  "Never synced", "Recently added". (banked 2026-11-25)
+- **Watched YouTube playlists**: remember a YT playlist and pull newly-added videos on refresh. (banked 2026-11-25)
 - **Album-art + tag enrichment**: fetch hi-res art / fix inconsistent tags (iTunes/MusicBrainz).
 - **Capacity forecast**: "~1,400 songs fit at 192k" on the device screen.
-- **Fresh shuffle rotation**: regenerate a randomized order each sync for the Shuffle.
+- **Fresh shuffle rotation**: regenerate a randomized order each sync for the Shuffle. (banked 2026-11-25)
 
 ## Decided against
+- **Device Autofill** ("fill remaining space") — scrapped by user 2026-11-25.
+- **Title-bar height fix** (fullSizeContentView) — scrapped by user 2026-11-25.
 - **Acoustic fingerprinting (AcoustID/Chromaprint)** — removed in v0.3.42. It could only judge a
   file *after* downloading it, and measured on real candidates the pre-download version (90s excerpt
   → fingerprint → lookup with the expected duration) confirmed only 1 of 4 tracks: excerpt
@@ -78,7 +78,8 @@ Kept current as I work. Newest requests at top of "In progress".
   the composed (NFC) path while the FAT32 volume reports names decomposed (v0.3.28 normalized the
   app's own comparisons, but the player's matching is its own logic — check a playlist containing
   e.g. "Ce matin-là" plays through on the device)
-- Replace-artwork button in metadata editor is a no-op
-- Import non-DRM local Apple Music file (engine `importLocal` exists; no UI button)
-- Direct "remove from device" list (currently unpin → sync)
+- [x] (done 2026-11-25) Replace-artwork button in metadata editor is a no-op
+- [x] (done 2026-11-25) Import non-DRM local Apple Music file (engine `importLocal` exists; no UI button)
+- [in progress 2026-11-25] Device screen works offline: remembered contents, edit while unplugged,
+  apply pending changes with one Sync on reconnect
 - Verify a real device sync + real yt-dlp download on hardware

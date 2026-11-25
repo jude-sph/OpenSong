@@ -482,7 +482,7 @@ struct ArtistsList: View {
                 ForEach(store.artists) { artist in
                     HStack(spacing: 12) {
                         ArtworkThumbnail(path: store.songs.first { $0.groupArtist == artist.name }?.path ?? "",
-                                         seed: artist.name, size: 52, corner: 26)
+                                         seed: artist.name, size: 52, corner: 26, version: store.artVersion)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(artist.name).font(.system(size: 14, weight: .medium)).foregroundStyle(theme.text)
                             Text("\(artist.albumCount) albums · \(artist.songCount) songs")

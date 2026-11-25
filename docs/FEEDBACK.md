@@ -2,6 +2,19 @@
 
 Running log of feedback from real use, with status. Newest first.
 
+## 2026-11-25 session — metadata-editor artwork, local Apple Music import
+
+- [x] **"Replace artwork" in the metadata editor did nothing** — now opens the same Find-Artwork
+  sheet as the library context menu (the sheet item swaps from metadata to find-art). Thumbnails in
+  the editor, player, Health, playlist and artist lists now pass `artVersion`, so a replaced cover
+  isn't served from the in-memory cache.
+- [x] **Local, non-DRM Apple Music files had no import UI** — tracks not in the library with a real
+  local file show a "Local file" tag and an "Import from Music library" context-menu item; the
+  header gains "Import N from Music" (same selected-or-all rule as the Add button, which is
+  unchanged). Batch `importLocal([...])` reloads once and reports "Imported N of M from Music";
+  reload rebuilds the ownership index, so rows flip to "In library". `AudioSource` has no Apple
+  Music case, so imports stay `.importedLoose`. Not clicked through in the UI.
+
 ## 2026-08-13 session (v0.13.1) — search kept filtering inside an album
 
 - [x] **Searching for an album, then opening it, showed only the matching tracks** — and the search
@@ -1143,12 +1156,13 @@ pushed to the Walkman by hand — covers now display on the player.
 - [x] **Apple Music "Grant access & load" does nothing.** Cause: Music.app wasn't running,
   so the JXA returned empty. Fix: bridge now `Music.launch()`es before reading.
 
-- [ ] **Title bar takes too much vertical space** (empty strip above the custom bar).
+- [~] **Title bar takes too much vertical space** (scrapped by user 2026-11-25) (empty strip above the custom bar).
   Cause: the window reserves the native titlebar height above the custom 44px `TitleBar`.
   Fix: set `fullSizeContentView` + transparent titlebar so content reaches the top.
 
-- [ ] **Pending (wishlist) should hold playlists too, not just songs.** Needs a wishlist
-  "playlist" grouping (e.g. mark a whole Apple Music playlist → pending, recreate on import).
+- [x] **Pending (wishlist) should hold playlists too, not just songs.** Already done: wishes carry
+  `playlistName`, Pending groups by it, and `maybeRecreatePlaylist` fills the playlist as each
+  track downloads ("Playlist ready" when complete). Confirmed 2026-11-25.
 
 - [x] **Pending-tab previews won't play (2026-11-09).** Root cause: YouTube answers 403 for the
   first ~3–4 s after issuing a stream URL; AVPlayer hit it immediately, failed ("Cannot Open")
