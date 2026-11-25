@@ -8,6 +8,9 @@ public struct SyncPlan: Sendable {
     public var projectedUsedBytes: Int64
     public var totalBytes: Int64
     public var freeBytes: Int64
+    /// The `device_track` rows behind `toRemove`, in the same order — so a removal can be traced
+    /// back to its asset (and undone) without re-reading the store.
+    public var removals: [DeviceTrackRow] = []
 }
 
 /// Reconciles the device toward the desired set (pinned assets ∪ device-playlist members):
@@ -27,7 +30,11 @@ public struct SyncEngine: Sendable {
     }
 
     /// Union of pinned assets and members of device-flagged playlists, de-duplicated.
-    public func desiredAssets() throws -> [AudioAsset] {
+    public func desiredAssets() throws -> [AudioAsset] { try Self.desiredAssets(store) }
+
+    /// Union of pinned assets and members of device-flagged playlists, de-duplicated, ordered by id.
+    /// Static so the offline plan (no device mounted) shares exactly the same definition.
+    public static func desiredAssets(_ store: LibraryStore) throws -> [AudioAsset] {
         var byID: [Int64: AudioAsset] = [:]
         for a in try store.pinnedAssets() { if let id = a.id { byID[id] = a } }
         for pl in try store.devicePlaylists() {
@@ -37,7 +44,8 @@ public struct SyncEngine: Sendable {
         return byID.values.sorted { ($0.id ?? 0) < ($1.id ?? 0) }
     }
 
-    private func estimatedDeviceSize(_ asset: AudioAsset, _ ident: TrackIdentity) -> Int64 {
+    private static func estimatedDeviceSize(_ asset: AudioAsset, _ ident: TrackIdentity,
+                                            _ transcoder: Transcoder, _ settings: TranscodeSettings) -> Int64 {
         // If it will be transcoded, estimate from target bitrate × duration; else the master size.
         let probeLike = ProbeResult(durationSec: ident.durationSec, bitrateKbps: asset.bitrateKbps,
                                     codec: asset.format, sampleRate: asset.sampleRate,
@@ -48,12 +56,39 @@ public struct SyncEngine: Sendable {
         return asset.sizeBytes
     }
 
+    /// Live plan: diff the desired set against the managed-track rows *and* a walk of the mounted
+    /// device, with the volume's real capacity.
     public func plan() throws -> SyncPlan {
         let desired = try desiredAssets()
         let managed = try store.deviceTracks(deviceUUID)
-        let managedByPath = Dictionary(managed.map { ($0.relativePath, $0) }, uniquingKeysWith: { a, _ in a })
         let actualPaths = Set(try device.listManagedTracks())
         let (total, free) = try device.volume.capacity()
+        return Self.makePlan(desired: desired, identities: try store.allIdentitiesByID(),
+                             managed: managed, actualPaths: actualPaths,
+                             totalBytes: total, freeBytes: free,
+                             settings: settings, transcoder: transcoder)
+    }
+
+    /// Offline plan: no device mounted, so assume nothing on it changed since the last sync — the
+    /// managed-track rows stand in for the walk, and the capacity is the one remembered from when
+    /// it was last connected. Reconnecting runs the live `plan()`, which catches any drift.
+    public static func offlinePlan(store: LibraryStore, transcoder: Transcoder, settings: TranscodeSettings,
+                                   deviceUUID: String, totalBytes: Int64, freeBytes: Int64) throws -> SyncPlan {
+        let managed = try store.deviceTracks(deviceUUID)
+        return makePlan(desired: try desiredAssets(store), identities: try store.allIdentitiesByID(),
+                        managed: managed, actualPaths: Set(managed.map { $0.relativePath }),
+                        totalBytes: totalBytes, freeBytes: freeBytes,
+                        settings: settings, transcoder: transcoder)
+    }
+
+    /// The diff itself, with no I/O: desired assets vs. the managed rows and the set of paths
+    /// actually present. `transcoder` is only consulted for its (pure) transcode decision when
+    /// estimating sizes.
+    public static func makePlan(desired: [AudioAsset], identities idents: [Int64: TrackIdentity],
+                                managed: [DeviceTrackRow], actualPaths: Set<String>,
+                                totalBytes total: Int64, freeBytes free: Int64,
+                                settings: TranscodeSettings, transcoder: Transcoder) -> SyncPlan {
+        let managedByPath = Dictionary(managed.map { ($0.relativePath, $0) }, uniquingKeysWith: { a, _ in a })
         let usedNow = total - free
 
         var toAdd: [AudioAsset] = []
@@ -61,7 +96,6 @@ public struct SyncEngine: Sendable {
         var desiredPaths = Set<String>()
         var addBytes: Int64 = 0
 
-        let idents = try store.allIdentitiesByID()
         for asset in desired {
             guard let ident = idents[asset.identityID] else { continue }
             let relPath = DeviceRelativePath.backslashPath(for: ident)
@@ -73,21 +107,22 @@ public struct SyncEngine: Sendable {
                 upToDate.append(asset)
             } else {
                 toAdd.append(asset)
-                addBytes += estimatedDeviceSize(asset, ident)
+                addBytes += estimatedDeviceSize(asset, ident, transcoder, settings)
             }
         }
 
         // Remove only managed tracks that are no longer desired (foreign files untouched).
-        var toRemove: [String] = []
+        var removals: [DeviceTrackRow] = []
         var removeBytes: Int64 = 0
         for row in managed where !desiredPaths.contains(row.relativePath) {
-            toRemove.append(row.relativePath)
+            removals.append(row)
             removeBytes += row.sizeBytes
         }
 
         let projectedUsed = max(0, usedNow + addBytes - removeBytes)
-        return SyncPlan(toAdd: toAdd, toRemove: toRemove, upToDate: upToDate,
-                        projectedUsedBytes: projectedUsed, totalBytes: total, freeBytes: free)
+        return SyncPlan(toAdd: toAdd, toRemove: removals.map { $0.relativePath }, upToDate: upToDate,
+                        projectedUsedBytes: projectedUsed, totalBytes: total, freeBytes: free,
+                        removals: removals)
     }
 
     /// Execute the plan: transcode/copy additions, remove stale managed tracks, rewrite playlists.

@@ -47,5 +47,6 @@ registerOwnershipIndexTests()
 registerSpotifyClientTests()
 registerShuffleDBTests()
 registerShuffleSyncTests()
+registerOfflinePlanTests()
 
 t.runAll()

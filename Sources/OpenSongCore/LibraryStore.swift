@@ -412,6 +412,11 @@ public final class LibraryStore: @unchecked Sendable {
         }
     }
 
+    /// Just the pinned asset ids, for callers that only need membership (one cheap query).
+    public func pinnedAssetIDs() throws -> Set<Int64> {
+        try dbQueue.read { db in Set(try Int64.fetchAll(db, sql: "SELECT assetID FROM pinned_asset")) }
+    }
+
     public func identity(_ id: Int64) throws -> TrackIdentity? {
         try dbQueue.read { db in try TrackIdentity.filter(key: id).fetchOne(db) }
     }

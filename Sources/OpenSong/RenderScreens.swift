@@ -45,7 +45,9 @@ func renderScreens() {
     // Artists
     write("04-artists-dark", dark: true, size: winSize) { RootShot(view: .artists) }
     // Device (simulated, with sync diff)
-    write("05-device-light", dark: false, size: winSize) { RootShot(view: .device, simulateDevice: true) }
+    write("05-device-light", dark: false, size: CGSize(width: 1180, height: 1100)) { RootShot(view: .device, simulateDevice: true) }
+    // Device unplugged but remembered: on-device list, queued adds/removes, inert Sync button
+    write("05c-device-offline-dark", dark: true, size: CGSize(width: 1180, height: 1100)) { RootShot(view: .deviceOffline) }
     // Device mid-sync (progress bar + time left)
     write("05b-device-syncing-dark", dark: true, size: winSize) { RootShot(view: .deviceSyncing, simulateDevice: true) }
     // Playlist detail
@@ -87,7 +89,7 @@ func renderScreens() {
 
 /// Renders RootView with a pre-set active view (and optional simulated device).
 private struct RootShot: View {
-    enum Which { case allSongs, albums, artists, device, deviceSyncing, firstPlaylist, wishlist, match, appleMusic, spotify, spotifyDetail, youtube, health, albumDetail, artistDetail, artWindow }
+    enum Which { case allSongs, albums, artists, device, deviceOffline, deviceSyncing, firstPlaylist, wishlist, match, appleMusic, spotify, spotifyDetail, youtube, health, albumDetail, artistDetail, artWindow }
     let view: Which
     var simulateDevice: Bool = false
     var seedWishes: Bool = false
@@ -103,6 +105,7 @@ private struct RootShot: View {
         case .albums: store.activeView = .albums
         case .artists: store.activeView = .artists
         case .device: store.activeView = .device
+        case .deviceOffline: store.seedOfflineDeviceForRender(); store.activeView = .device
         case .deviceSyncing: store.activeView = .device; store.seedSyncProgressForRender()
         case .wishlist: store.activeView = .wishlist
         case .appleMusic: store.seedAppleMusicForRender(); store.activeView = .appleMusic

@@ -80,6 +80,6 @@ Kept current as I work. Newest requests at top of "In progress".
   e.g. "Ce matin-là" plays through on the device)
 - [x] (done 2026-11-25) Replace-artwork button in metadata editor is a no-op
 - [x] (done 2026-11-25) Import non-DRM local Apple Music file (engine `importLocal` exists; no UI button)
-- [in progress 2026-11-25] Device screen works offline: remembered contents, edit while unplugged,
-  apply pending changes with one Sync on reconnect
+- [x] (done 2026-11-25) Device screen works offline: remembered contents, edit while unplugged,
+  apply pending changes with one Sync on reconnect (also covers the direct "remove from device" list)
 - Verify a real device sync + real yt-dlp download on hardware

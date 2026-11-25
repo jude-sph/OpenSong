@@ -184,6 +184,17 @@ func registerSyncEngineTests() {
         let plan = try f.engine.plan()
         try t.expectEqual(plan.toRemove, ["A\\Alb\\Drop.mp3"], "only the un-desired managed track")
         try t.expect(!plan.toRemove.contains(where: { $0.contains("foreign") }), "foreign not in removals")
+        try t.expectEqual(plan.removals.map { $0.assetID }, [a2.id!], "the removal maps back to its asset")
+
+        // With the device untouched since the sync, the offline plan (rows + remembered capacity)
+        // must say exactly what the live one (a walk of the volume) says.
+        let offline = try SyncEngine.offlinePlan(store: f.store, transcoder: f.engine.transcoder,
+                                                 settings: f.engine.settings, deviceUUID: f.volume.uuid,
+                                                 totalBytes: plan.totalBytes, freeBytes: plan.freeBytes)
+        try t.expectEqual(offline.toRemove, plan.toRemove, "offline agrees on removals")
+        try t.expectEqual(offline.toAdd.map { $0.id }, plan.toAdd.map { $0.id }, "offline agrees on additions")
+        try t.expectEqual(offline.upToDate.map { $0.id }, plan.upToDate.map { $0.id }, "offline agrees on up to date")
+        try t.expectEqual(offline.projectedUsedBytes, plan.projectedUsedBytes, "and on projected usage")
 
         try f.engine.apply(plan)
         try t.expect(!FileManager.default.fileExists(atPath:
